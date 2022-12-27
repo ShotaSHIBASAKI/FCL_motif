@@ -1,0 +1,174 @@
+---
+title: "FCL and motif"
+output: html_notebook
+---
+
+In this notebook, we analyze the relationship between FCL and the fractions of the motives in empirical food webs.
+We use igraph package to analyze food webs.
+To measure the fractions of the motives we use triad_census function in igraph.
+Note that 13 motives are defined but this funciton returns 16 motives because 
+the function can include sugraphs that include isolated nodes.
+
+```{r Measure FCL}
+library(tidyverse)
+library(igraph)
+FCL=function(A, def=0){
+  # A: an adjacency matrix of directed food web
+  # def: defnition of FCL. We chosoe one definition from below
+  # def =-1: shortest-path
+  # def =0 (default)  mean trphic levels of prey +1. Only acyclic graph
+  # def = 1: longest-path. Only acyclic graph
+  
+  N = nrow(A) # number of species in the food web
+  TL=rep(0, N)
+  B=c()
+  # Check the number of basal species
+  for (i in 1:N){
+    if (sum(A[, i])==0){
+      TL[i]=1 # basal species
+      B=c(B, i) # list of basal species
+    }
+  }
+  
+  # Check whether A is DAG or not
+  # calculate trophic levels 
+  
+  
+  for (i in 1:N){
+    if(TL[i]==0){
+      # analyze nob-basal species
+      if (def==0){
+          # we define FCL by mean prey's tropic level
+          # here we assume unbiased predation
+          TL[i] = 1+(TL[1:(i-1)]%*%A[1:(i-1), i])/sum(A[1:(i-1), i])
+      }
+      else if (def==-1){
+          # TL of species i is defined by 1+the shortest path from a basal species
+          graph=graph_from_adjacency_matrix(A,mode='directed')
+          TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+      }
+      else if (def==1){
+          #TL of species i is defined by 1+the longest path from a basal species
+          # Because igraph does not have an algorithm for the longest path
+          # we will use the shortest path with negative weights
+          graph=graph_from_adjacency_matrix(-A,mode='directed', weight=TRUE)
+          TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to species i
+      }
+    }
+  }
+ #print(TL)
+  return (max(TL)-1) # FCL= max TL -1
+}
+```
+
+```{r DataFrame Generation}
+# define A 
+
+# read from Data base
+# NOTE THAT WE NEED TO CHANGE SEPARATOR IN THE FILES
+Analysis = function (d){
+  # d row csv file
+  # return FCLs and number fo the motives
+  D=d[, 4:ncol(d)]
+  #rownames(D)=d[, 3]
+  #colnames(D)=d[1,4:ncol(d) ]
+  A=data.frame(D)
+  colnames(A)=colnames(D)
+  rownames(A)=as.character(unlist(d[, 3]))
+  for (i in 1:nrow(A)){
+    if (as.integer(rownames(A))[i]<10){
+      rownames(A)[i] = paste0("0",rownames(A)[i])
+    }
+  }
+  
+  for (i in 1:ncol(A)){
+    if (as.integer(colnames(A))[i]<10){
+      colnames(A)[i] = paste0("0",colnames(A)[i])
+    }
+  }
+  N_list=sort(unique(c(rownames(A), colnames(A)))) # total number of species in the food web
+  col_check=!(N_list %in% colnames(A)) # which species is missing in columns?
+  row_check=!(N_list %in% rownames(A)) # which species is missing in rows?
+  for(i in 1:length(N_list)){
+    if (col_check[i]==TRUE){
+       add = rep(0, nrow(A))
+       a=cbind(A, add)
+       #if(i<10){
+       #  colnames(a)=c(colnames(A), paste0("0",N_list[0]))
+       #}else{
+        # colnames(a)=c(colnames(A), paste0(N_list[i]))
+       #}
+       colnames(a)=c(colnames(A), paste0(N_list[i]))
+       A= a %>% select(all_of(names(a) %>% sort())) # update A and sorting
+    }
+    if (row_check[i]==TRUE){
+       add = rep(0, ncol(A))
+       a=rbind(A, add)
+       #if(i<10){
+      #   rownames(a)=c(rownames(A), paste0("0",N_list[i]))
+      # }else{
+       #  rownames(a)=c(rownames(A), paste0(N_list[i]))
+       #}
+       rownames(a)=c(rownames(A), paste0(N_list[i]))
+       A=a %>% arrange(rownames(a)) # update A and sorting
+    }
+  } 
+  A=matrix(unlist(A), ncol=ncol(A))  # convert matrix so that we can use it in igraph
+  graph=graph_from_adjacency_matrix(A,mode='directed')
+  if (is.dag(graph)==TRUE){
+    #FCL_mean=FCL(A, def=0) # FCL based on mean prey trophic level
+    # convert weighted adj into unweighted one
+    A =matrix(as.integer(A>0), nrow=nrow(A))
+    FCL_long = FCL(A, 1)
+  }else{
+  # In this case, two FCLs cannot be defined
+  #FCL_mean=NaN
+  FCL_long=NaN
+  # convert weighted adj into unweighted one
+  A =matrix(as.integer(A>0), nrow=nrow(A))
+  }
+  FCL_short =FCL(A, -1) # this can be defined in any food webs. Return Inf without basal species
+  
+  motif=matrix(triad_census(graph), nrow=1)
+  # the names of the motives follow previous studies
+  data=data.frame(FCL_short, FCL_long, nrow(A), motif)
+  colnames(data) = c('FCL_short', 'FCL_long',"richness", 
+                    "empty","monoA-single","bi-single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+  return (data)
+}
+
+```
+```{r Main}
+#Main
+# Note that we used the cleaned data from the database so that we can easily analyze them in R
+# We do not calcualte FCL_mean heere because adj matrix does not necesarily upper-triangular although it is DAG.
+for(i in 1:213){
+  fname=paste0('./EmpiricalFoodWeb/ECOWeB1.1/DATFILES Predation Matrices/WEB',i,'.DAT')
+  d=read_csv(fname)
+  if (i==1){
+  data=Analysis(d)
+  }else{
+    data=rbind(data, Analysis(d))
+  }
+write.csv(data, "Cohen2010_summary.csv", row.names = FALSE)
+}
+```
+
+```{r Data analysis and vizualization}
+data=read.csv("Cohen2010_summary.csv")
+# plot FCLs and richness
+ggplot(data, aes(x=FCL_short)) + geom_histogram()
+ggplot(data, aes(x=FCL_long)) + geom_histogram()
+ggplot(data, aes(x=richness)) + geom_histogram()
+# remove empty, mono- and bi-single as they are not used in previous studies
+df = subset(data, select = -c(empty,monoA.single, bi.single) )
+df=df %>% select(order(colnames(df)))
+df=dplyr::select(df, FCL_long,FCL_short,richness,everything())
+head(df)
+# Below analyze df. We may need to convert the numbers of the motives into their fractions
+```
+
+Although we cannot analyze cyclic food webs, analyzing FCL_long would be more interesting than FCL_short because the variation in long is larger than short one.
+
