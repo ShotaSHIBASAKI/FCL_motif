@@ -157,6 +157,8 @@ write.csv(data, "Cohen2010_summary.csv", row.names = FALSE)
 ```
 
 ```{r Data analysis and vizualization}
+library(ggplot2)
+library(tidyverse)
 data=read.csv("Cohen2010_summary.csv")
 # plot FCLs and richness
 ggplot(data, aes(x=FCL_short)) + geom_histogram()
@@ -168,7 +170,42 @@ df=df %>% select(order(colnames(df)))
 df=dplyr::select(df, FCL_long,FCL_short,richness,everything())
 head(df)
 # Below analyze df. We may need to convert the numbers of the motives into their fractions
+sum.motif=apply(df[, 4:ncol(df)], 1, sum) # sum of motives in each row
+df[, 4:ncol(df)] = df[, 4:ncol(df)]/sum.motif # converting into fractions of motives
+# s3 and d5-d8 are missing in all data
+#print(apply(df[, 4:ncol(df)], 2, sum))
+df = subset(df, select = -c(s3, d5, d6, d7,d8) )
+df[, 4:ncol(df)] = scale(df[,4:ncol(df)])
+# check correlation
+library(ggcorrplot)
+corr=cor(df, use = "pairwise.complete.obs") # pearson and spearman show similar results
+ggcorrplot(corr)
 ```
 
-Although we cannot analyze cyclic food webs, analyzing FCL_long would be more interesting than FCL_short because the variation in long is larger than short one.
+Although we cannot analyze cyclic food webs, analyzing FCL_long would be more interesting than FCL_short because the variation in long is larger than short one. In addition, we can see some correlations between FCLs and fractions of s-motives
 
+```{r Linear regression}
+print('Shortest path length')
+summary(lm(formula = FCL_short ~ richness + s1 + s2 + s4+s5, data = df)) # we use ds as intercept
+
+print('Longest path length')
+summary(lm(formula = FCL_long ~ richness + s1 + s2 + s4, data = df)) # we use s5 as intercept
+``` 
+As the variations in FCL-short is small, the regression is not interesting as expected. In contrast, we can see the effects of the single-path motives on FCL_long. Let's us see next the comparisons between the prediction and acutusl FCL-long.
+Note: linear regression would not be a good choice as FCL is discrete.
+In addition, we should standarize the exp. variables  so that we can comapre the effects. Poisson? mean of FZCL_long is 3.7 and variance is 2.3, but this family cannot generate FCL>3
+
+```{r diag}
+library(ggfortify)
+model=glm(FCL_long~richness+s1+s2+s5, data=df, family = 'gaussian')
+summary(model)
+autoplot(model, label.size = 3)
+
+plot(data$FCL_long[-(which(is.na(data$FCL_long)))],predict(model), 
+     xlab='FCL_long', ylab='Prediction',
+     xlim=c(1,10), ylim=c(1, 10))
+par(new=T)
+plot(c(1:10), c(1:10), type='l', 
+      xlab='FCL_long', ylab='Prediction',
+     xlim=c(1,10), ylim=c(1, 10))
+```
