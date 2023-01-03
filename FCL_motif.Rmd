@@ -1,28 +1,31 @@
 ---
 title: "FCL and motif"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 In this notebook, we analyze the relationship between FCL and the fractions of the motives in empirical food webs.
 We use igraph package to analyze food webs.
 To measure the fractions of the motives we use triad_census function in igraph.
-Note that 13 motives are defined but this funciton returns 16 motives because 
-the function can include sugraphs that include isolated nodes.
+Note that 13 motives are defined but this function returns 16 motives because 
+the function can include sub-graphs that include isolated nodes. Such sub-graphs are removed in the analysis.
+We use the database from Cohen (2011), whioch contains 213 empirical food webs.
 
 ```{r Measure FCL}
 library(tidyverse)
 library(igraph)
 FCL=function(A, def=0){
   # A: an adjacency matrix of directed food web
-  # def: defnition of FCL. We chosoe one definition from below
+  # def: definition of FCL. We choose one definition from below
   # def =-1: shortest-path
-  # def =0 (default)  mean trphic levels of prey +1. Only acyclic graph
+  # def =0 (default)  mean trophic levels of prey +1. Only acyclic graph
   # def = 1: longest-path. Only acyclic graph
   
   N = nrow(A) # number of species in the food web
   TL=rep(0, N)
   B=c()
-  # Check the number of basal species
+  # Check the indexes of basal species
   for (i in 1:N){
     if (sum(A[, i])==0){
       TL[i]=1 # basal species
@@ -39,7 +42,6 @@ FCL=function(A, def=0){
       # analyze nob-basal species
       if (def==0){
           # we define FCL by mean prey's tropic level
-          # here we assume unbiased predation
           TL[i] = 1+(TL[1:(i-1)]%*%A[1:(i-1), i])/sum(A[1:(i-1), i])
       }
       else if (def==-1){
@@ -66,6 +68,9 @@ FCL=function(A, def=0){
 
 # read from Data base
 # NOTE THAT WE NEED TO CHANGE SEPARATOR IN THE FILES
+# Unfortunately, we CANNOT define FCL based  on prey's trophic levels 
+# because the species's induces are not sorted so that an adj matrix is upper-triangular.
+# and because we do not know an algorithm to sort the species induces.
 Analysis = function (d){
   # d row csv file
   # return FCLs and number fo the motives
@@ -86,6 +91,7 @@ Analysis = function (d){
       colnames(A)[i] = paste0("0",colnames(A)[i])
     }
   }
+  # We need to convert a data into NxN matrix
   N_list=sort(unique(c(rownames(A), colnames(A)))) # total number of species in the food web
   col_check=!(N_list %in% colnames(A)) # which species is missing in columns?
   row_check=!(N_list %in% rownames(A)) # which species is missing in rows?
@@ -155,11 +161,16 @@ for(i in 1:213){
 write.csv(data, "Cohen2010_summary.csv", row.names = FALSE)
 }
 ```
-
+Below, we plot distributions of FCLs and richness, and a collaboration matrix.
+Some important variables:
+s1: chain motif,
+s2: omnivory motif,
+s3: cyclic predation motif (RSP game)
+s4 & 5: apparent or exploitative competition motives (2 prey or 2 predators, respectively)
 ```{r Data analysis and vizualization}
 library(ggplot2)
 library(tidyverse)
-data=read.csv("Cohen2010_summary.csv")
+data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
 # plot FCLs and richness
 ggplot(data, aes(x=FCL_short)) + geom_histogram()
 ggplot(data, aes(x=FCL_long)) + geom_histogram()
@@ -169,43 +180,86 @@ df = subset(data, select = -c(empty,monoA.single, bi.single) )
 df=df %>% select(order(colnames(df)))
 df=dplyr::select(df, FCL_long,FCL_short,richness,everything())
 head(df)
-# Below analyze df. We may need to convert the numbers of the motives into their fractions
+# Below we analyze df. We may need to convert the numbers of the motives into their fractions
 sum.motif=apply(df[, 4:ncol(df)], 1, sum) # sum of motives in each row
 df[, 4:ncol(df)] = df[, 4:ncol(df)]/sum.motif # converting into fractions of motives
-# s3 and d5-d8 are missing in all data
+# we remove s3 and d5-d8 from the data frame because they  are missing in all data
 #print(apply(df[, 4:ncol(df)], 2, sum))
 df = subset(df, select = -c(s3, d5, d6, d7,d8) )
-df[, 4:ncol(df)] = scale(df[,4:ncol(df)])
+df[, 4:ncol(df)] = scale(df[,4:ncol(df)]) # this is scaled data. 
 # check correlation
 library(ggcorrplot)
 corr=cor(df, use = "pairwise.complete.obs") # pearson and spearman show similar results
 ggcorrplot(corr)
 ```
+FCL_short is biased toward FCL_short=2 and the variation seems very small, which suggests that the analysis on FCL_short is not promising. IN contrast, FCL_long has a larger variation and we are likely to analyze how the fractions of the motives affect FCL_long. 
+In addition, we have a variation in species richness, and we can remove the effect of richness on FCL_long in a stat model.
+In the correlation matrix, we can see positive correlations between FCL_long and s1 (chain), s2 (omnivory), and richness. This would be intuitive. In the chain and omnivory motives, FCL_long is two, while FCL_long of competition is one; then, having the chain or omnivory motives would inclurease FCL_long in the whole food web. In addition, if we have more species, we are likely to have longer FCL as the max FCL is richness minus one (when theb whole food web is chain).
 
-Although we cannot analyze cyclic food webs, analyzing FCL_long would be more interesting than FCL_short because the variation in long is larger than short one. In addition, we can see some correlations between FCLs and fractions of s-motives
-
+Below, we will see some simple linear regressions.
+Note that we use the scaled variable so that means of richness and the fractions of the motives are zero while their sds are ones. This enables us to compare their "effects" on FCL_long (although, this is not the causal inference).
 ```{r Linear regression}
 print('Shortest path length')
 summary(lm(formula = FCL_short ~ richness + s1 + s2 + s4+s5, data = df)) # we use ds as intercept
 
 print('Longest path length')
-summary(lm(formula = FCL_long ~ richness + s1 + s2 + s4, data = df)) # we use s5 as intercept
+summary(lm(formula = FCL_long ~ richness + s1 + s2 + s5, data = df)) # we use s5 as intercept
 ``` 
-As the variations in FCL-short is small, the regression is not interesting as expected. In contrast, we can see the effects of the single-path motives on FCL_long. Let's us see next the comparisons between the prediction and acutusl FCL-long.
-Note: linear regression would not be a good choice as FCL is discrete.
-In addition, we should standarize the exp. variables  so that we can comapre the effects. Poisson? mean of FZCL_long is 3.7 and variance is 2.3, but this family cannot generate FCL>3
+As the variations in FCL-short is small, the regression is not interesting as expected. In contrast, we can see the effects of the single-path motives on FCL_long. Let's us see next the comparisons between the prediction and acutual FCL_long.
+Note: linear regression would not be a good choice as FCL is discrete. Below we try some glms.
 
-```{r diag}
+```{r GLM gaussian}
 library(ggfortify)
-model=glm(FCL_long~richness+s1+s2+s5, data=df, family = 'gaussian')
-summary(model)
-autoplot(model, label.size = 3)
+model1=glm(FCL_long~richness+s1+s2+s5, data=df, family = 'gaussian') # gaussian
+summary(model1)
+autoplot(model1, label.size = 3)
 
-plot(data$FCL_long[-(which(is.na(data$FCL_long)))],predict(model), 
-     xlab='FCL_long', ylab='Prediction',
+plot(data$FCL_long[-(which(is.na(data$FCL_long)))],predict(model1), 
+     xlab='FCL_long', ylab='Prediction 1',
      xlim=c(1,10), ylim=c(1, 10))
 par(new=T)
 plot(c(1:10), c(1:10), type='l', 
-      xlab='FCL_long', ylab='Prediction',
+      xlab='FCL_long', ylab='Prediction 1',
      xlim=c(1,10), ylim=c(1, 10))
+# In case you want to check VIF, use the codes below
+# library(car)
+# barplot(vif(model1), main = "VIF Values", horiz = TRUE, col = "steelblue")
+ # As we can see, VIFs are small
+```
+This model cannot predict long (>6) FCL_long
+How about Poisson? The mean of FZCL_long is 3.7 and its variance is 2.3, but this faily function cannot generate FCL>3
+```{r GLM Poisson}
+model2=glm(FCL_long~richness+s1+s2+s5, data=df, family = 'poisson') # poisson
+summary(model2)
+autoplot(model2, label.size = 3)
+
+plot(data$FCL_long[-(which(is.na(data$FCL_long)))],predict(model2), 
+     xlab='FCL_long', ylab='Prediction 2',
+     xlim=c(1,10), ylim=c(1, 10))
+par(new=T)
+plot(c(1:10), c(1:10), type='l', 
+      xlab='FCL_long', ylab='Prediction 2',
+     xlim=c(1,10), ylim=c(1, 10))
+
+
+```
+Poisson  is worse.
+
+It seems that FCL_long does not fit a gaussian distribution. Then, how about log (FCL_long)? This would be closer to a gaussian distribution.
+
+```{r}
+library(tidyverse)
+df=mutate(df, log_FCL_long = log(FCL_long))
+model3=glm(log_FCL_long~richness+s1+s2+s5, data=df, family = 'gaussian') # gaussian
+summary(model3)
+autoplot(model3, label.size = 3)
+
+plot(df$log_FCL_long[-(which(is.na(df$log_FCL_long)))],predict(model3), 
+     xlab='log(FCL_long)', ylab='Prediction 3',
+     xlim=c(1,2.5), ylim=c(1, 2.5))
+par(new=T)
+plot(c(0:3), c(0:3), type='l', 
+      xlab='log(FCL_long)', ylab='Prediction 3',
+     xlim=c(1,2.5), ylim=c(1, 2.5))
+
 ```
