@@ -171,10 +171,11 @@ s4 & 5: apparent or exploitative competition motives (2 prey or 2 predators, res
 library(ggplot2)
 library(tidyverse)
 data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
+
 # plot FCLs and richness
-ggplot(data, aes(x=FCL_short)) + geom_histogram()
-ggplot(data, aes(x=FCL_long)) + geom_histogram()
-ggplot(data, aes(x=richness)) + geom_histogram()
+ggplot(data, aes(x=FCL_short)) + geom_bar()
+ggplot(data, aes(x=FCL_long)) + geom_bar()
+ggplot(data, aes(x=richness)) + geom_bar()
 # remove empty, mono- and bi-single as they are not used in previous studies
 df = subset(data, select = -c(empty,monoA.single, bi.single) )
 df=df %>% select(order(colnames(df)))
@@ -192,6 +193,18 @@ library(ggcorrplot)
 corr=cor(df, use = "pairwise.complete.obs") # pearson and spearman show similar results
 ggcorrplot(corr)
 ```
+
+In the manuscript. we may not need to show the motives of ds.
+
+```{r}
+dd=subset(df, select = -c(d1, d2,d3, d4) )
+colnames(dd) = c('FCL long', 'FCL short', 'Richness', 
+                 'Chain', 'Omnivory', 'Apparent comp', 'Exploitative comp')
+corr=cor(dd, use = "pairwise.complete.obs", method='pearson') # pearson and spearman show similar results
+p.mat <- cor_pmat(dd, use = "pairwise.complete.obs",  method='pearson') # p values
+ggcorrplot(corr, type = "lower", p.mat = p.mat)
+ggsave("Cohen_correlation.pdf")
+```
 FCL_short is biased toward FCL_short=2 and the variation seems very small, which suggests that the analysis on FCL_short is not promising. IN contrast, FCL_long has a larger variation and we are likely to analyze how the fractions of the motives affect FCL_long. 
 In addition, we have a variation in species richness, and we can remove the effect of richness on FCL_long in a stat model.
 In the correlation matrix, we can see positive correlations between FCL_long and s1 (chain), s2 (omnivory), and richness. This would be intuitive. In the chain and omnivory motives, FCL_long is two, while FCL_long of competition is one; then, having the chain or omnivory motives would inclurease FCL_long in the whole food web. In addition, if we have more species, we are likely to have longer FCL as the max FCL is richness minus one (when theb whole food web is chain).
@@ -200,7 +213,7 @@ Below, we will see some simple linear regressions.
 Note that we use the scaled variable so that means of richness and the fractions of the motives are zero while their sds are ones. This enables us to compare their "effects" on FCL_long (although, this is not the causal inference).
 ```{r Linear regression}
 print('Shortest path length')
-summary(lm(formula = FCL_short ~ richness + s1 + s2 + s4+s5, data = df)) # we use ds as intercept
+summary(lm(formula = FCL_short ~ richness + s1 +s4, data = df)) # we use ds as intercept
 
 print('Longest path length')
 summary(lm(formula = FCL_long ~ richness + s1 + s2 + s5, data = df)) # we use s5 as intercept

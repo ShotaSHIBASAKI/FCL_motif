@@ -381,3 +381,165 @@ Main(30, -1)
 print("Longest path")
 Main(30, 1)
 ```
+
+
+Now we analyze the relationship between FCL and food web motives in simulation data
+```{r Analysis}
+library(ggplot2)
+library(igraph)
+library(tidyverse)
+Reconstract_FW =function(presence_array, full_FW, TL_def){
+  #--------------------------------------------
+  # This function generate realized food web and calculate FWL and food web motives
+  # presence_array: array of presence of each species. 1: presence, 0: absence
+  # full_FW NxN food web. The realized food web is a sub-matrix of this matrix
+  # TL_def: 0 Trophic level is given by the mean prey trophic levels
+  #     -1: TL is defined by the shortest-path length
+  #      1: TL is defined by the longest-path length  
+  #--------------------------------------------
+  n= sum (presence_array) # number of existing species
+  if(n==0){
+    # no species exist
+    FCL=-1
+    motif=matrix(rep(NaN, 16), ncol=16)
+    data=data.frame(FCL, richness=0, motif)
+    colnames(data) = c('FCL', 'richness', "empty","monoA.single","bi.single",
+                    "exploitative","apparent","chain","d4","d3","omnivory",
+                    "s3","d8","d2","d1","d5","d7","d6")
+   data=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative) ) # ignore others as FW is acyclic 
+    # change order
+    data=data %>% select(order(colnames(data)))
+    data=dplyr::select(data, FCL,chain,omnivory, apparent, exploitative, everything())
+    return(data)
+  }
+  adj=matrix(0, n, n)
+  indexes=c() # indexes of present species
+  for (i in 1:length(presence_array)){
+    if(presence_array[i]==1){
+      indexes=c(indexes, i)
+    }
+  }
+  for(i in 1:n){
+    for (j in  1:n){
+      adj[i, j] = full_FW[indexes[i], indexes[j]]
+    }
+  }
+  # calculate FCL
+ 
+  TL=rep(0, n) # trophic levels
+  B=c() # array of basal species
+  for (i in 1:n){
+    if(sum(adj[, i])==0)
+    {
+      # species i is a basal species
+      TL[i]=1
+      B=c(B, i)
+    }
+    else{
+      # calculate TL
+      if (TL_def==0){
+        # TL=1 + mean of prey TL
+        
+        TL[i] = 1+(TL[1:(i-1)]%*%adj[1:(i-1), i])/sum(adj[1:(i-1), i])
+      }else if(TL_def==-1){
+        #TL= 1+ shortest-path length from basal species
+         graph=graph_from_adjacency_matrix(adj,mode='directed') # graph used in igraph
+         
+         TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+      } else{
+        #TL = 1+ longest-path length
+        graph=graph_from_adjacency_matrix(-adj,mode='directed', weight=TRUE)
+        TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to
+      }
+    }
+  }
+  FCL=-1+max(TL)
+  
+  # calculate fractions of motives
+  graph=graph_from_adjacency_matrix(adj,mode='directed')
+  motif=matrix(triad_census(graph), nrow=1)
+  #motif=motif/sum(motif) # convert into fractions
+ 
+  data=data.frame(FCL, richness=n, motif)
+  colnames(data) = c('FCL', 'richness', "empty","monoA.single","bi.single",
+                    "exploitative","apparent","chain","d4","d3","omnivory",
+                    "s3","d8","d2","d1","d5","d7","d6")
+  data=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative) ) # ignore others as FW is acyclic 
+  data[3:ncol(data)]=data[3:ncol(data)]/(sum(data[3:ncol(data)])) # fractions of motives
+  # change order
+  data=data %>% select(order(colnames(data)))
+  data=dplyr::select(data, FCL,richness, chain,omnivory, apparent, exploitative, everything())
+  return(data)
+}
+Main= function(TL_def, num_FW=30){
+  #generate summary csv file to analyze simulation data
+  D=c()
+  for (n in 1:num_FW){
+    data=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'Presence_FoodWeb_',n,'.csv'))
+    presence_array=data[, 4:ncol(data)]
+    full_FW=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'FoodWeb_',n,'.csv'))
+    ans=c()
+    for (i in 1:nrow(data)){
+      ans=rbind(ans, Reconstract_FW(presence_array[i, ], full_FW, TL_def))
+    }
+    D=rbind(D, cbind(FW=n, data[, 1:3], ans))
+  }
+  return(D)
+}
+data_long=Main(1)
+write.csv(data_long, './FCL_long_simulations_summary.csv', row.names = FALSE)
+data_mean=Main(0)
+write.csv(data_mean, './FCL_mean_simulations_summary.csv', row.names = FALSE)
+data_short=Main(-1)
+write.csv(data_short, './FCL_short_simulations_summary.csv', row.names = FALSE)
+```
+
+Below we plot and analyze data
+```{r FCL analysis}
+library(ggcorrplot)
+Plot_corr=function(data, FCL_name, fname){
+  df=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+  colnames(df) = c(FCL_name, 'Richness', 
+                 'Chain', 'Omnivory', 'Apparent comp', 'Exploitative comp', 
+                 'Resource', 'Disturbance')
+  corr=cor(df, use = "pairwise.complete.obs", method='pearson') # pearson and spearman show similar results
+  print(corr)
+  p.mat <- cor_pmat(df, use = "pairwise.complete.obs",  method='pearson') # p values
+  ggcorrplot(corr, type = "lower", p.mat = p.mat)
+  ggsave(fname)
+}
+
+Plot_corr(data_long, 'FCL long', 'Simulated_FCL_long_correlation.pdf')
+Plot_corr(data_mean, 'FCL mean',  'Simulated_FCL_mean_correlation.pdf')
+Plot_corr(data_short, 'FCL short', 'Simulated_FCL_short_correlation.pdf')
+
+
+# Next we perform statistical analysis.
+# Each model contains variables whose correlation with FCL >0.2 or < -0.2
+df_long=subset(data_long, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+df_long[, 2:ncol(df_long)]=scale(df_long[, 2:ncol(df_long)])
+summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_long))
+df_mean=subset(data_mean, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+df_mean[, 2:ncol(df_mean)]=scale(df_mean[, 2:ncol(df_mean)])
+summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_mean))
+df_short=subset(data_short, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+df_short[, 2:ncol(df_short)]=scale(df_long[, 2:ncol(df_short)])
+summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_short))
+
+```
+
+Below, we check the distributions of FCL and species richness in the simulation data
+```{r}
+print('FCL long')
+ggplot(data_long, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')
+ggplot(data_long, aes(x=FCL)) + geom_bar()+xlab('FCL long')+ylab('Count')
+
+print('FCL mean')
+ggplot(data_mean, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')
+ggplot(data_mean, aes(x=FCL)) + geom_histogram()+xlab('FCL mean')+ylab('Count')
+
+print('FCL short')
+ggplot(data_short, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')
+ggplot(data_short, aes(x=FCL)) + geom_bar()+xlab('FCL short')+ylab('Count')
+
+```
