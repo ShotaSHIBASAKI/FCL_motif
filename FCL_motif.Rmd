@@ -173,9 +173,12 @@ library(tidyverse)
 data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
 
 # plot FCLs and richness
-ggplot(data, aes(x=FCL_short)) + geom_bar()
-ggplot(data, aes(x=FCL_long)) + geom_bar()
-ggplot(data, aes(x=richness)) + geom_bar()
+ggplot(data, aes(x=FCL_short)) + geom_bar()+xlab('FCL short')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave('Empirical_FCL_short.pdf')
+ggplot(data, aes(x=FCL_long)) + geom_bar()+xlab('FCL long')+ylab('Count')+ theme(text = element_text(size = 20)) 
+ggsave('Empirical_FCL_long.pdf')
+ggplot(data, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')+ theme(text = element_text(size = 20)) 
+ggsave('Empirical_richness.pdf')
 # remove empty, mono- and bi-single as they are not used in previous studies
 df = subset(data, select = -c(empty,monoA.single, bi.single) )
 df=df %>% select(order(colnames(df)))
@@ -202,7 +205,7 @@ colnames(dd) = c('FCL long', 'FCL short', 'Richness',
                  'Chain', 'Omnivory', 'Apparent comp', 'Exploitative comp')
 corr=cor(dd, use = "pairwise.complete.obs", method='pearson') # pearson and spearman show similar results
 p.mat <- cor_pmat(dd, use = "pairwise.complete.obs",  method='pearson') # p values
-ggcorrplot(corr, type = "lower", p.mat = p.mat)
+ggcorrplot(corr, type = "lower", p.mat = p.mat) + theme(axis.text = element_text(size = 24))     
 ggsave("Cohen_correlation.pdf")
 ```
 FCL_short is biased toward FCL_short=2 and the variation seems very small, which suggests that the analysis on FCL_short is not promising. IN contrast, FCL_long has a larger variation and we are likely to analyze how the fractions of the motives affect FCL_long. 
@@ -212,11 +215,15 @@ In the correlation matrix, we can see positive correlations between FCL_long and
 Below, we will see some simple linear regressions.
 Note that we use the scaled variable so that means of richness and the fractions of the motives are zero while their sds are ones. This enables us to compare their "effects" on FCL_long (although, this is not the causal inference).
 ```{r Linear regression}
+library(car)
 print('Shortest path length')
-summary(lm(formula = FCL_short ~ richness + s1 +s4, data = df)) # we use ds as intercept
-
+model_short=lm(formula = FCL_short ~ richness + s1 +s4, data = df)
+summary(model_short) # we use ds as intercept
+vif(model_short)
 print('Longest path length')
-summary(lm(formula = FCL_long ~ richness + s1 + s2 + s5, data = df)) # we use s5 as intercept
+model_long=lm(formula = FCL_long ~ richness + s1 + s2 + s5, data = df)
+summary(model_long) # we use s5 as intercept
+vif(model_long)
 ``` 
 As the variations in FCL-short is small, the regression is not interesting as expected. In contrast, we can see the effects of the single-path motives on FCL_long. Let's us see next the comparisons between the prediction and acutual FCL_long.
 Note: linear regression would not be a good choice as FCL is discrete. Below we try some glms.

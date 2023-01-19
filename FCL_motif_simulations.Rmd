@@ -497,7 +497,7 @@ write.csv(data_short, './FCL_short_simulations_summary.csv', row.names = FALSE)
 Below we plot and analyze data
 ```{r FCL analysis}
 library(ggcorrplot)
-Plot_corr=function(data, FCL_name, fname){
+Plot_corr=function(data, FCL_name, fname, legend=FALSE){
   df=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
   colnames(df) = c(FCL_name, 'Richness', 
                  'Chain', 'Omnivory', 'Apparent comp', 'Exploitative comp', 
@@ -505,41 +505,68 @@ Plot_corr=function(data, FCL_name, fname){
   corr=cor(df, use = "pairwise.complete.obs", method='pearson') # pearson and spearman show similar results
   print(corr)
   p.mat <- cor_pmat(df, use = "pairwise.complete.obs",  method='pearson') # p values
-  ggcorrplot(corr, type = "lower", p.mat = p.mat)
+  ggcorrplot(corr, type = "lower", p.mat = p.mat, tl.cex=20, show.legend=legend)
   ggsave(fname)
 }
 
 Plot_corr(data_long, 'FCL long', 'Simulated_FCL_long_correlation.pdf')
 Plot_corr(data_mean, 'FCL mean',  'Simulated_FCL_mean_correlation.pdf')
-Plot_corr(data_short, 'FCL short', 'Simulated_FCL_short_correlation.pdf')
+Plot_corr(data_short, 'FCL short', 'Simulated_FCL_short_correlation.pdf', legend=TRUE)
 
-
+library(car)
 # Next we perform statistical analysis.
 # Each model contains variables whose correlation with FCL >0.2 or < -0.2
 df_long=subset(data_long, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+df_long=replace(df_long, is.na(df_long), 0) # fill na with zero before scalling
 df_long[, 2:ncol(df_long)]=scale(df_long[, 2:ncol(df_long)])
 summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_long))
+vif(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_long))
+
 df_mean=subset(data_mean, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+df_mean=replace(df_mean, is.na(df_mean), 0) # fill na with zero before scalling
 df_mean[, 2:ncol(df_mean)]=scale(df_mean[, 2:ncol(df_mean)])
 summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_mean))
+vif(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_mean))
+
+
 df_short=subset(data_short, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+df_short=replace(df_short, is.na(df_short), 0) # fill na with zero before scalling
 df_short[, 2:ncol(df_short)]=scale(df_long[, 2:ncol(df_short)])
 summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_short))
-
+vif(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_short))
 ```
 
 Below, we check the distributions of FCL and species richness in the simulation data
 ```{r}
 print('FCL long')
-ggplot(data_long, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')
-ggplot(data_long, aes(x=FCL)) + geom_bar()+xlab('FCL long')+ylab('Count')
+ggplot(data_long, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave("Simulation_FCL_long_richness.pdf")
+ggplot(data_long, aes(x=FCL)) + geom_bar()+xlab('FCL long')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave("Simulation_FCL_long_FCL.pdf")
 
 print('FCL mean')
-ggplot(data_mean, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')
-ggplot(data_mean, aes(x=FCL)) + geom_histogram()+xlab('FCL mean')+ylab('Count')
+ggplot(data_mean, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave("Simulation_FCL_mean_richness.pdf")
+ggplot(data_mean, aes(x=FCL)) + geom_histogram()+xlab('FCL mean')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave("Simulation_FCL_mean_FCL.pdf")
 
 print('FCL short')
-ggplot(data_short, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')
-ggplot(data_short, aes(x=FCL)) + geom_bar()+xlab('FCL short')+ylab('Count')
+ggplot(data_short, aes(x=richness)) + geom_bar()+xlab('Richness')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave("Simulation_FCL_short_richness.pdf")
+ggplot(data_short, aes(x=FCL)) + geom_bar()+xlab('FCL short')+ylab('Count')+ theme(text = element_text(size = 20))   
+ggsave("Simulation_FCL_short_FCL.pdf")
+
+```
+
+```{r WHY FCL short is incocistent between simulations and empirical data}
+g1=ggplot(data_short, aes(x=as.factor(disturbance), y=FCL)) + geom_violin()
+g1=g1+xlab('Disturbance')+ylab('FCL short')+ theme(text = element_text(size = 20)) 
+ggsave('FCL_short_disturbance.pdf')
+g2=ggplot(data_short, aes(x=as.factor(disturbance), y=richness)) + geom_violin()
+g2=g2+xlab('Disturbance')+ylab('Richness')+ theme(text = element_text(size = 20)) 
+ggsave('FCL_short_richness.pdf')
+
+# what happens when we remove data FCL<1
+summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory, data = df_short[df_short$FCL>1, ]))
 
 ```
