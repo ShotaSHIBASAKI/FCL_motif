@@ -182,31 +182,37 @@ ggsave('Empirical_richness.pdf')
 # remove empty, mono- and bi-single as they are not used in previous studies
 df = subset(data, select = -c(empty,monoA.single, bi.single) )
 df=df %>% select(order(colnames(df)))
-df=dplyr::select(df, FCL_long,FCL_short,richness,everything())
+df=dplyr::select(df, WEB_id,FCL_long,FCL_short,richness,Ecosystem, everything())
 head(df)
 # Below we analyze df. We may need to convert the numbers of the motives into their fractions
-sum.motif=apply(df[, 4:ncol(df)], 1, sum) # sum of motives in each row
-df[, 4:ncol(df)] = df[, 4:ncol(df)]/sum.motif # converting into fractions of motives
+sum.motif=apply(df[, 6:ncol(df)], 1, sum) # sum of motives in each row
+df[, 6:ncol(df)] = df[, 6:ncol(df)]/sum.motif # converting into fractions of motives
 # we remove s3 and d5-d8 from the data frame because they  are missing in all data
 #print(apply(df[, 4:ncol(df)], 2, sum))
 df = subset(df, select = -c(s3, d5, d6, d7,d8) )
-df[, 4:ncol(df)] = scale(df[,4:ncol(df)]) # this is scaled data. 
+df[, 6:ncol(df)] = scale(df[,6:ncol(df)]) # this is scaled data. 
 # check correlation
 library(ggcorrplot)
-corr=cor(df, use = "pairwise.complete.obs") # pearson and spearman show similar results
+corr=cor(subset(df, select=-c(WEB_id, Ecosystem)), use = "pairwise.complete.obs") # pearson and spearman show similar results
 ggcorrplot(corr)
+
+
 ```
+
 
 In the manuscript. we may not need to show the motives of ds.
 
 ```{r}
-dd=subset(df, select = -c(d1, d2,d3, d4) )
+dd=subset(df, select = -c(WEB_id, Ecosystem, d1, d2,d3, d4) )
 colnames(dd) = c('FCL long', 'FCL short', 'Richness', 
                  'Chain', 'Omnivory', 'Apparent comp', 'Exploitative comp')
-corr=cor(dd, use = "pairwise.complete.obs", method='pearson') # pearson and spearman show similar results
+corr=cor(dd, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
 p.mat <- cor_pmat(dd, use = "pairwise.complete.obs",  method='pearson') # p values
 ggcorrplot(corr, type = "lower", p.mat = p.mat) + theme(axis.text = element_text(size = 24))     
 ggsave("Cohen_correlation.pdf")
+
+# Plot FCL against motives
+
 ```
 FCL_short is biased toward FCL_short=2 and the variation seems very small, which suggests that the analysis on FCL_short is not promising. IN contrast, FCL_long has a larger variation and we are likely to analyze how the fractions of the motives affect FCL_long. 
 In addition, we have a variation in species richness, and we can remove the effect of richness on FCL_long in a stat model.
@@ -282,4 +288,142 @@ plot(c(0:3), c(0:3), type='l',
       xlab='log(FCL_long)', ylab='Prediction 3',
      xlim=c(1,2.5), ylim=c(1, 2.5))
 
+```
+
+
+Next we plot the ecosystem types in the database
+```{r ecosystem}
+library(plyr)
+df_new=df
+C=count(df, 'Ecosystem')
+print(C)
+# remove categories <=3
+remove=C[,2]<=3
+remove_category=c()
+for (i in 1:length(remove)){
+  if(remove[i]==TRUE){
+   df_new$Ecosystem[df_new$Ecosystem==C[i,1]]='others' 
+  }
+}
+
+ggplot(df_new, aes(x=Ecosystem, fill=Ecosystem)) + geom_bar()+ylab('Count')+theme(
+  axis.text.x = element_text(size=14, angle=30),
+  axis.title.x = element_text(size=24),
+   axis.text.y = element_text(size=16),
+  axis.title.y = element_text(size=24),
+  legend.position="none"
+  )
+ggsave("Cohen_Ecosystem_count.pdf")
+
+# calclulate richness and FCLs in each ecosystem
+ggplot(data=df_new, aes(x=Ecosystem, y=richness, color=Ecosystem)) +geom_jitter(position=position_jitter(0.2))+ylab('Richness')+theme(
+axis.text.x = element_text(size=14, angle=30),
+  axis.title.x = element_text(size=24),
+   axis.text.y = element_text(size=16),
+  axis.title.y = element_text(size=24),
+  )+guides(color = 'none')
+ggsave("Cohen_Ecosystem_richness.pdf")
+
+
+#ggplot(data=df_new, aes(x=Ecosystem, y=FCL_long, color=Ecosystem)) +geom_jitter(position=position_jitter(0.2))+ylab('FCL long')+theme(
+ggplot(df_new, aes(x=Ecosystem, y=FCL_long, color=Ecosystem)) + ylab('FCL long' )+
+  geom_count(aes(size=..prop.., group=Ecosystem))+theme(
+axis.text.x = element_text(size=14, angle=30),
+  axis.title.x = element_text(size=24),
+   axis.text.y = element_text(size=16),
+  axis.title.y = element_text(size=24),
+  )+guides(color = 'none')
+ggsave("Cohen_Ecosystem_long.pdf")
+
+
+
+#ggplot(data=df_new, aes(x=Ecosystem, y=FCL_short, color=Ecosystem)) +geom_jitter(position=position_jitter(0.2))+ylab('FCL short')+theme(
+ggplot(df_new, aes(x=Ecosystem, y=FCL_short, color=Ecosystem)) + ylab('FCL short')+
+  geom_count(aes(size=..prop.., group=Ecosystem))+theme(
+axis.text.x = element_text(size=14, angle=30),
+  axis.title.x = element_text(size=24),
+   axis.text.y = element_text(size=16),
+  axis.title.y = element_text(size=24),
+  #legend.position="none"
+  )+guides(color = 'none')
+ggsave("Cohen_Ecosystem_short.pdf")
+```
+
+
+```{r Plo FCL against motives}
+library(patchwork)
+data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
+df = subset(data, select = -c(empty,monoA.single, bi.single) )
+df=df %>% select(order(colnames(df)))
+df=dplyr::select(df, WEB_id,FCL_long,FCL_short,richness,Ecosystem, everything())
+sum.motif=apply(df[, 6:ncol(df)], 1, sum) # sum of motives in each row
+df[, 6:ncol(df)] = df[, 6:ncol(df)]/sum.motif # converting into fractions of motives
+# we remove s3 and d5-d8 from the data frame because they  are missing in all data
+#print(apply(df[, 4:ncol(df)], 2, sum))
+df = subset(df, select = -c(WEB_id, s3, d1, d2, d3, d4,d5, d6, d7,d8) )
+colnames(df) = c('FCL_long', 'FCL_short', 'Richness','Ecosystems',  
+                 'Chain', 'Omnivory', 'Apparent', 'Exploitative')
+# Note scaling in this case
+
+p1=ggplot(df, aes(x=Chain, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df$FCL_long, df$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_long, df$Chain, method='spearman')$p.value, 3)), size=5)
+p2=ggplot(df, aes(x=Omnivory, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df$FCL_long, df$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_long, df$Omnivory, method='spearman')$p.value, 3)), size=5)
+p3=ggplot(df, aes(x=Apparent, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df$FCL_long, df$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_long, df$Apparent, method='spearman')$p.value, 3)), size=5)
+p4=ggplot(df, aes(x=Exploitative, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df$FCL_long, df$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_long, df$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+
+p5=ggplot(df, aes(x=Chain, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df$FCL_short, df$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_short, df$Chain, method='spearman')$p.value, 3)), size=5)
+p6=ggplot(df, aes(x=Omnivory, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df$FCL_short, df$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_short, df$Omnivory, method='spearman')$p.value, 3)), size=5)
+p7=ggplot(df, aes(x=Apparent, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df$FCL_short, df$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_short, df$Apparent, method='spearman')$p.value, 3)), size=5)
+p8=ggplot(df, aes(x=Exploitative, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df$FCL_short, df$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_short, df$Exploitative, method='spearman')$p.value, 3)), size=5)
+g=p1+p5+p2+p6+p3+p7+p4+p8+plot_layout(nrow = 4,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+
+ggsave('FCL_empirical.pdf', width=8, height=12)
 ```
