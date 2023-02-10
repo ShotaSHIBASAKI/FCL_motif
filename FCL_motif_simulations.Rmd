@@ -307,16 +307,17 @@ single_patch = function (A_f, parm, TL_def=0, replicate=100, tf=1000, SimName='s
   return (data.frame(Replicate=seq(1, replicate, 1), final_presence))
 }
 
-ParmGeneraotr = function(N, B, resource, disturbunce){
+ParmGeneraotr = function(N, B, resource, disturbunce, eco_size){
   #----------------------------------------
   #Generate parameters needed to run simulations
   # N: number of total species in a community
   # B: number of basal species
   # resource: resource availability that determines the number of coexisting basal species
   # disturbances: strength of disturbances that drive species extinction
+  # eco_size: eco-system sizes which affect  the max colonization rates
   #----------------------------------------
-  parm=c(rep(1, N), # a 
-         rep(1, N), # b
+  parm=c(rep(eco_size, N), # a 
+         rep(eco_size, N), # b
          rep(0.3, N), # c
          rep(0, B), # d_basal
          rep(10, N-B), #d_non-basal
@@ -351,6 +352,7 @@ Main=function(num_network, TL_def, N=32, Basal=4){
   # design resource parm set. This is based on N and B
   E=c(0.1, 0.5, 0.9)
   R=c(1, 2, 4, 8)
+  Eco=c(0.5, 1, 2) 
   setwd(paste0("./Species", N, "/basal",Basal))
   for (j in 1:num_network){
     # Read adjacency matrix of food web
@@ -360,17 +362,20 @@ Main=function(num_network, TL_def, N=32, Basal=4){
       resource = R[k]
       for (l in 1:length(E)){
           disturbance=E[l]
-          #Generate parm
-          parm = ParmGeneraotr(N, Basal, resource, disturbance)
-          # Run simulation
-          fcl=single_patch(A_f, parm, TL_def, replicate=100)
-          fcl=cbind(rep(resource,nrow(fcl)), rep(disturbance,nrow(fcl)),fcl)
-          names(fcl)=c("resource", "disturbance", "replicate",
-                       paste0("Sp", seq(from = 1, to = N, by = 1)))
-          ans=rbind(ans, fcl)
+          for(m in 1:length(Eco)){
+            eco_size=Eco[m]
+             #Generate parm
+              parm = ParmGeneraotr(N, Basal, resource, disturbance, eco_size)
+              # Run simulation
+              fcl=single_patch(A_f, parm, TL_def, replicate=100)
+              fcl=cbind(rep(resource,nrow(fcl)), rep(disturbance,nrow(fcl)),rep(eco_size, nrow(fcl)), fcl)
+              names(fcl)=c("resource", "disturbance", "ecosystem", "replicate",
+                           paste0("Sp", seq(from = 1, to = N, by = 1)))
+              ans=rbind(ans, fcl)
+          }
       }
     }
-    write.table(ans, paste0("TLDef_",TL_def , "Presence_FoodWeb_", j, ".csv"), sep=",", row.names = FALSE)
+    write.table(ans, paste0("TLDef_",TL_def , "Presence_FoodWeb_", j,".csv"), sep=",", row.names = FALSE)
   }
   setwd("../../")
 }
@@ -476,13 +481,13 @@ Main= function(TL_def, num_FW=30){
   D=c()
   for (n in 1:num_FW){
     data=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'Presence_FoodWeb_',n,'.csv'))
-    presence_array=data[, 4:ncol(data)]
+    presence_array=data[, 5:ncol(data)]
     full_FW=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'FoodWeb_',n,'.csv'))
     ans=c()
     for (i in 1:nrow(data)){
       ans=rbind(ans, Reconstract_FW(presence_array[i, ], full_FW, TL_def))
     }
-    D=rbind(D, cbind(FW=n, data[, 1:3], ans))
+    D=rbind(D, cbind(FW=n, data[, 1:4], ans))
   }
   return(D)
 }
@@ -498,11 +503,11 @@ Below we plot and analyze data
 ```{r FCL analysis}
 library(ggcorrplot)
 Plot_corr=function(data, FCL_name, fname, legend=FALSE){
-  df=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
+  df=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance, ecosystem) )
   colnames(df) = c(FCL_name, 'Richness', 
                  'Chain', 'Omnivory', 'Apparent comp', 'Exploitative comp', 
-                 'Resource', 'Disturbance')
-  corr=cor(df, use = "pairwise.complete.obs", method='pearson') # pearson and spearman show similar results
+                 'Resource', 'Disturbance', 'Ecosystem')
+  corr=cor(df, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
   print(corr)
   p.mat <- cor_pmat(df, use = "pairwise.complete.obs",  method='pearson') # p values
   ggcorrplot(corr, type = "lower", p.mat = p.mat, tl.cex=20, show.legend=legend)
@@ -570,3 +575,199 @@ ggsave('FCL_short_richness.pdf')
 summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory, data = df_short[df_short$FCL>1, ]))
 
 ```
+Next, as we show in the empirical data, we plot the FCL aginst motives as well as against resource, disturbances, and ecosystem sizes
+```{r Plot FCL against motives}
+library(patchwork)
+# against motives
+# FCL long
+df_long=read.csv("FCL_long_simulations_summary.csv")
+
+p1=ggplot(df_long, aes(x=chain, y=FCL, size=4, alpha=0.1))+geom_point(color='#a6cee3')+ylab('FCL long')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$chain, method='spearman')$estimate, 3)), size=5)
+
+p2=ggplot(df_long, aes(x=omnivory, y=FCL, size=4, alpha=0.1))+geom_point(color='#1f78b4')+ylab('FCL long')+xlab("Omnivory")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$omnivory, method='spearman')$estimate, 3)), size=5)
+
+p3=ggplot(df_long, aes(x=apparent, y=FCL, size=4, alpha=0.1))+geom_point(color='#b2df8a')+ylab('FCL long')+xlab("Apparent")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$apparent, method='spearman')$estimate, 3)), size=5)
+
+p4=ggplot(df_long, aes(x=exploitative, y=FCL, size=4, alpha=0.1))+geom_point(color='#33a02c')+ylab('FCL long')+xlab("Exploitative")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$exploitative, method='spearman')$estimate, 3)), size=5)
+
+df_mean=read.csv("FCL_mean_simulations_summary.csv")
+
+p5=ggplot(df_mean, aes(x=chain, y=FCL, size=4, alpha=0.1))+geom_point(color='#a6cee3')+ylab('FCL mean')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$chain, method='spearman')$estimate, 3)), size=5)
+
+p6=ggplot(df_mean, aes(x=omnivory, y=FCL, size=4, alpha=0.1))+geom_point(color='#1f78b4')+ylab('FCL mean')+xlab("Omnivory")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$omnivory, method='spearman')$estimate, 3)), size=5)
+
+p7=ggplot(df_mean, aes(x=apparent, y=FCL, size=4, alpha=0.1))+geom_point(color='#b2df8a')+ylab('FCL mean')+xlab("Apparent")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$apparent, method='spearman')$estimate, 3)), size=5)
+
+p8=ggplot(df_mean, aes(x=exploitative, y=FCL, size=4, alpha=0.1))+geom_point(color='#33a02c')+ylab('FCL mean')+xlab("Exploitative")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$exploitative, method='spearman')$estimate, 3)), size=5)
+
+df_short=read.csv("FCL_short_simulations_summary.csv")
+
+p9=ggplot(df_short, aes(x=chain, y=FCL, size=4, alpha=0.1))+geom_point(color='#a6cee3')+ylab('FCL short')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$chain, method='spearman')$estimate, 3)), size=5)
+
+p10=ggplot(df_short, aes(x=omnivory, y=FCL, size=4, alpha=0.1))+geom_point(color='#1f78b4')+ylab('FCL short')+xlab("Omnivory")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$omnivory, method='spearman')$estimate, 3)), size=5)
+
+p11=ggplot(df_short, aes(x=apparent, y=FCL, size=4, alpha=0.1))+geom_point(color='#b2df8a')+ylab('FCL short')+xlab("Apparent")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$apparent, method='spearman')$estimate, 3)), size=5)
+
+p12=ggplot(df_short, aes(x=exploitative, y=FCL, size=4, alpha=0.1))+geom_point(color='#33a02c')+ylab('FCL short')+xlab("Exploitative")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$exploitative, method='spearman')$estimate, 3)), size=5)
+
+p1+p5+p9+p2+p6+p10+p3+p7+p11+p4+p8+p12+plot_layout(nrow = 4,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('FCL_simulation_motives.png', width=12, height=16)
+```
+
+```{r Plot FCL against environments}
+df_long=read.csv("FCL_long_simulations_summary.csv")
+
+p1=ggplot(df_long, aes(x=resource, y=FCL, size=3, alpha=0.005))+geom_point(color='#7570b3')+ylab('FCL long')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(1,8))+annotate(geom="text", x=3, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$resource, method='spearman')$estimate, 3)), size=5)
+
+p2=ggplot(df_long, aes(x=disturbance, y=FCL, size=4, alpha=0.005))+geom_point(color='#d95f02')+ylab('FCL long')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p3=ggplot(df_long, aes(x=ecosystem, y=FCL, size=4, alpha=0.005))+geom_point(color='#1b9e77')+ylab('FCL long')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0.5,2.0))+annotate(geom="text", x=0.75, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+
+df_mean=read.csv("FCL_mean_simulations_summary.csv")
+
+p4=ggplot(df_mean, aes(x=resource, y=FCL, size=3, alpha=0.005))+geom_point(color='#7570b3')+ylab('FCL mean')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(1,8))+annotate(geom="text", x=3, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$resource, method='spearman')$estimate, 3)), size=5)
+
+p5=ggplot(df_mean, aes(x=disturbance, y=FCL, size=4, alpha=0.005))+geom_point(color='#d95f02')+ylab('FCL mean')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p6=ggplot(df_mean, aes(x=ecosystem, y=FCL, size=4, alpha=0.005))+geom_point(color='#1b9e77')+ylab('FCL mean')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0.5,2.0))+annotate(geom="text", x=0.75, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+df_short=read.csv("FCL_short_simulations_summary.csv")
+
+p7=ggplot(df_short, aes(x=resource, y=FCL, size=3, alpha=0.005))+geom_point(color='#7570b3')+ylab('FCL short')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(1,8))+annotate(geom="text", x=3, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$resource, method='spearman')$estimate, 3)), size=5)
+
+p8=ggplot(df_short, aes(x=disturbance, y=FCL, size=4, alpha=0.005))+geom_point(color='#d95f02')+ylab('FCL short')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p9=ggplot(df_short, aes(x=ecosystem, y=FCL, size=4, alpha=0.005))+geom_point(color='#1b9e77')+ylab('FCL short')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0.5,2.0))+annotate(geom="text", x=0.75, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p1+p4+p7+p2+p5+p8+p3+p6+p9+plot_layout(nrow = 4,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('FCL_simulation_environemnt.png', width=12, height=9)
+```
+
+We can see that FCL correlate with disturbance and ecosystem sizes, respectively, in any definition.
