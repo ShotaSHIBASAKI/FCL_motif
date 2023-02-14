@@ -350,7 +350,7 @@ ggsave("Cohen_Ecosystem_short.pdf")
 ```
 
 
-```{r Plo FCL against motives}
+```{r Plot FCL against motives}
 library(patchwork)
 data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
 df = subset(data, select = -c(empty,monoA.single, bi.single) )
@@ -363,7 +363,7 @@ df[, 6:ncol(df)] = df[, 6:ncol(df)]/sum.motif # converting into fractions of mot
 df = subset(df, select = -c(WEB_id, s3, d1, d2, d3, d4,d5, d6, d7,d8) )
 colnames(df) = c('FCL_long', 'FCL_short', 'Richness','Ecosystems',  
                  'Chain', 'Omnivory', 'Apparent', 'Exploitative')
-# Note scaling in this case
+# Not scaling in this case
 
 p1=ggplot(df, aes(x=Chain, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL long')+theme(
 axis.text.x = element_text(size=14),
@@ -426,4 +426,116 @@ axis.text.x = element_text(size=14),
 g=p1+p5+p2+p6+p3+p7+p4+p8+plot_layout(nrow = 4,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 
 ggsave('FCL_empirical.pdf', width=8, height=12)
+```
+
+
+```{r Richness}
+library(patchwork)
+data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
+df = subset(data, select = -c(empty,monoA.single, bi.single) )
+df=df %>% select(order(colnames(df)))
+df=dplyr::select(df, WEB_id,FCL_long,FCL_short,richness,Ecosystem, everything())
+sum.motif=apply(df[, 6:ncol(df)], 1, sum) # sum of motives in each row
+df[, 6:ncol(df)] = df[, 6:ncol(df)]/sum.motif # converting into fractions of motives
+# we remove s3 and d5-d8 from the data frame because they  are missing in all data
+#print(apply(df[, 4:ncol(df)], 2, sum))
+df = subset(df, select = -c(WEB_id, s3, d1, d2, d3, d4,d5, d6, d7,d8) )
+colnames(df) = c('FCL_long', 'FCL_short', 'Richness','Ecosystems',  
+                 'Chain', 'Omnivory', 'Apparent', 'Exploitative')
+p1=ggplot(df, aes(x=Richness, y=FCL_long, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=20, y=9, label=paste0('corr.=', round(cor.test(df$FCL_long, df$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_long, df$Richness, method='spearman')$p.value, 3)), size=5)
+p2=ggplot(df, aes(x=Richness, y=FCL_short, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=20, y=3.75, label=paste0('corr.=', round(cor.test(df$FCL_short, df$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df$FCL_short, df$Richness, method='spearman')$p.value, 3)), size=5)
+g=p1+p2+plot_layout(nrow = 2,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('FCL_empirical_richness.pdf', width=8, height=8)
+```
+
+```{r Does the model of saturation + quad}
+data=read.csv("Cohen2010_summary.csv") # this csv data summarizes the FCLs and the NUMBERS of fractions
+df = subset(data, select = -c(empty,monoA.single, bi.single) )
+df=df %>% select(order(colnames(df)))
+df=dplyr::select(df, WEB_id,FCL_long,FCL_short,richness,Ecosystem, everything())
+sum.motif=apply(df[, 6:ncol(df)], 1, sum) # sum of motives in each row
+df[, 6:ncol(df)] = df[, 6:ncol(df)]/sum.motif
+df = subset(df, select = -c(WEB_id, s3, d1, d2, d3, d4,d5, d6, d7,d8) )
+colnames(df) = c('FCL_long', 'FCL_short', 'Richness','Ecosystems',  
+                 'Chain', 'Omnivory', 'Apparent', 'Exploitative')
+ # converting into fractions of motivesdf=read.csv("Cohen2010_summary.csv")
+model_s=nls(FCL_short ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df,  
+            start=c(a=max(df$FCL_short)/2, b=1, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df$FCL_short)+1, b=10, c=10, d=10))
+summary(model_s)
+
+model_l=nls(FCL_long ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=na.omit(df),  
+            start=c(a=max(na.omit(df)$FCL_long)/2, b=1, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(na.omit(df)$FCL_long)+1, b=10, c=10, d=10))
+summary(model_l)
+```
+Here we obtained similar parameter values in the simulations in FCL short
+while the parameter values of FCL long is larger
+
+```{r Comapring regression model from the simulation data}
+df$predict_short=2.80*(1-exp(-0.18*df$Richness))-0.57*df$Chain^2+2.51*df$Chain-1
+
+
+g1=ggplot(df, aes(x=Richness, y=FCL_short, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 2.80*(1-exp(-0.18*x))-0.57*mean(df$Chain)^2+2.51*mean(df$Chain)-1, color='red')
+g2=ggplot(df, aes(x=Chain, y=FCL_short, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 2.80*(1-exp(-0.18*mean(df$Richness)))-0.57*x^2+2.51*x-1, color='red')
+
+g3=ggplot(df, aes(x=FCL_short, y=predict_short, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL short')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+
+df$predict_long=3.94*(1-exp(-0.09*df$Richness))-7.3*df$Chain^2+9.45*df$Chain-1
+
+g4=ggplot(df, aes(x=Richness, y=FCL_long, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*x))-7.3*mean(df$Chain)^2+9.45*mean(df$Chain)-1, color='red')
+g5=ggplot(df, aes(x=Chain, y=FCL_long, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*mean(df$Richness)))-7.3*x^2+9.45*x-1, color='red')
+g6=ggplot(df, aes(x=FCL_long, y=predict_long, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL long')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+g1+g2+g3+g4+g5+g6+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Modeling_empirical.png', width=12, height=8)
 ```

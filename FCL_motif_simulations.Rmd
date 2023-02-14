@@ -517,28 +517,6 @@ Plot_corr=function(data, FCL_name, fname, legend=FALSE){
 Plot_corr(data_long, 'FCL long', 'Simulated_FCL_long_correlation.pdf')
 Plot_corr(data_mean, 'FCL mean',  'Simulated_FCL_mean_correlation.pdf')
 Plot_corr(data_short, 'FCL short', 'Simulated_FCL_short_correlation.pdf', legend=TRUE)
-
-library(car)
-# Next we perform statistical analysis.
-# Each model contains variables whose correlation with FCL >0.2 or < -0.2
-df_long=subset(data_long, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
-df_long=replace(df_long, is.na(df_long), 0) # fill na with zero before scalling
-df_long[, 2:ncol(df_long)]=scale(df_long[, 2:ncol(df_long)])
-summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_long))
-vif(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_long))
-
-df_mean=subset(data_mean, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
-df_mean=replace(df_mean, is.na(df_mean), 0) # fill na with zero before scalling
-df_mean[, 2:ncol(df_mean)]=scale(df_mean[, 2:ncol(df_mean)])
-summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_mean))
-vif(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_mean))
-
-
-df_short=subset(data_short, select = c(FCL, richness, chain, omnivory, apparent, exploitative, resource, disturbance) )
-df_short=replace(df_short, is.na(df_short), 0) # fill na with zero before scalling
-df_short[, 2:ncol(df_short)]=scale(df_long[, 2:ncol(df_short)])
-summary(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_short))
-vif(lm(formula = FCL ~ richness + chain + exploitative+omnivory*disturbance, data = df_short))
 ```
 
 Below, we check the distributions of FCL and species richness in the simulation data
@@ -689,85 +667,623 @@ ggsave('FCL_simulation_motives.png', width=12, height=16)
 ```{r Plot FCL against environments}
 df_long=read.csv("FCL_long_simulations_summary.csv")
 
-p1=ggplot(df_long, aes(x=resource, y=FCL, size=3, alpha=0.005))+geom_point(color='#7570b3')+ylab('FCL long')+xlab("Resource")+theme(
+p1=ggplot(df_long, aes(x=factor(resource), y=FCL))+geom_violin(color='#7570b3')+ylab('FCL long')+xlab("Resource")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(1,8))+annotate(geom="text", x=3, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$resource, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=2, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$resource, method='spearman')$estimate, 3)), size=5)
 
-p2=ggplot(df_long, aes(x=disturbance, y=FCL, size=4, alpha=0.005))+geom_point(color='#d95f02')+ylab('FCL long')+xlab("Disturbance")+theme(
+p2=ggplot(df_long, aes(x=factor(disturbance), y=FCL))+geom_violin(color='#d95f02')+ylab('FCL long')+xlab("Disturbance")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$disturbance, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=1.5, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$disturbance, method='spearman')$estimate, 3)), size=5)
 
-p3=ggplot(df_long, aes(x=ecosystem, y=FCL, size=4, alpha=0.005))+geom_point(color='#1b9e77')+ylab('FCL long')+xlab("Ecosystem")+theme(
+p3=ggplot(df_long, aes(x=factor(ecosystem), y=FCL))+geom_violin(color='#1b9e77')+ylab('FCL long')+xlab("Ecosystem")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(0.5,2.0))+annotate(geom="text", x=0.75, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$ecosystem, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=1.5, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$ecosystem, method='spearman')$estimate, 3)), size=5)
 
 
 df_mean=read.csv("FCL_mean_simulations_summary.csv")
 
-p4=ggplot(df_mean, aes(x=resource, y=FCL, size=3, alpha=0.005))+geom_point(color='#7570b3')+ylab('FCL mean')+xlab("Resource")+theme(
+p4=ggplot(df_mean, aes(x=factor(resource), y=FCL))+geom_violin(color='#7570b3')+ylab('FCL mean')+xlab("Resource")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(1,8))+annotate(geom="text", x=3, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$resource, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=2, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$resource, method='spearman')$estimate, 3)), size=5)
 
-p5=ggplot(df_mean, aes(x=disturbance, y=FCL, size=4, alpha=0.005))+geom_point(color='#d95f02')+ylab('FCL mean')+xlab("Disturbance")+theme(
+p5=ggplot(df_mean, aes(x=factor(disturbance), y=FCL))+geom_violin(color='#d95f02')+ylab('FCL mean')+xlab("Disturbance")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$disturbance, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=1.5, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$disturbance, method='spearman')$estimate, 3)), size=5)
 
-p6=ggplot(df_mean, aes(x=ecosystem, y=FCL, size=4, alpha=0.005))+geom_point(color='#1b9e77')+ylab('FCL mean')+xlab("Ecosystem")+theme(
+p6=ggplot(df_mean, aes(x=factor(ecosystem), y=FCL))+geom_violin(color='#1b9e77')+ylab('FCL mean')+xlab("Ecosystem")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(0.5,2.0))+annotate(geom="text", x=0.75, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$ecosystem, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=1.5, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$ecosystem, method='spearman')$estimate, 3)), size=5)
 
 df_short=read.csv("FCL_short_simulations_summary.csv")
 
-p7=ggplot(df_short, aes(x=resource, y=FCL, size=3, alpha=0.005))+geom_point(color='#7570b3')+ylab('FCL short')+xlab("Resource")+theme(
+p7=ggplot(df_short, aes(x=factor(resource), y=FCL))+geom_violin(color='#7570b3')+ylab('FCL short')+xlab("Resource")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(1,8))+annotate(geom="text", x=3, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$resource, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=2, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$resource, method='spearman')$estimate, 3)), size=5)
 
-p8=ggplot(df_short, aes(x=disturbance, y=FCL, size=4, alpha=0.005))+geom_point(color='#d95f02')+ylab('FCL short')+xlab("Disturbance")+theme(
+p8=ggplot(df_short, aes(x=factor(disturbance), y=FCL))+geom_violin(color='#d95f02')+ylab('FCL short')+xlab("Disturbance")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$disturbance, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=1.5, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$disturbance, method='spearman')$estimate, 3)), size=5)
 
-p9=ggplot(df_short, aes(x=ecosystem, y=FCL, size=4, alpha=0.005))+geom_point(color='#1b9e77')+ylab('FCL short')+xlab("Ecosystem")+theme(
+p9=ggplot(df_short, aes(x=factor(ecosystem), y=FCL))+geom_violin(color='#1b9e77')+ylab('FCL short')+xlab("Ecosystem")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+xlim(c(0.5,2.0))+annotate(geom="text", x=0.75, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$ecosystem, method='spearman')$estimate, 3)), size=5)
+  )+annotate(geom="text", x=1.5, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$ecosystem, method='spearman')$estimate, 3)), size=5)
 
-p1+p4+p7+p2+p5+p8+p3+p6+p9+plot_layout(nrow = 4,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('FCL_simulation_environemnt.png', width=12, height=9)
+p1+p4+p7+p2+p5+p8+p3+p6+p9+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('FCL_simulation_environemnt.pdf', width=12, height=9)
+```
+We also plot FCL against richness
+```{r Richness}
+p1=ggplot(df_long, aes(x=richness, y=FCL, size=3, alpha=0.005))+geom_point(color='black')+ylab('FCL long')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=3, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$richness, method='spearman')$estimate, 3)), size=5)
+p2=ggplot(df_mean, aes(x=richness, y=FCL, size=3, alpha=0.005))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=3, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$richness, method='spearman')$estimate, 3)), size=5)
+p3=ggplot(df_short, aes(x=richness, y=FCL, size=3, alpha=0.005))+geom_point(color='black')+ylab('FCL short')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=3, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$richness, method='spearman')$estimate, 3)), size=5)
+p1+p2+p3+plot_layout(nrow = 4,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('FCL_simulation_richness.png', width=9, height=12)
 ```
 
-We can see that FCL correlate with disturbance and ecosystem sizes, respectively, in any definition.
+We can see that FCL correlate with chain motif, disturbance, and ecosystem sizes, respectively, in any definition. Then, we can ask whether disturbance and ecosystem size affect the fractions of motives
+
+```{r Plot richness and chain motif against enviornments}
+p1=ggplot(df_long, aes(x=factor(resource), y=chain))+geom_violin(color='#7570b3')+ylab('Chain in long')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=2, y=1.1, label=paste0('corr.=', round(cor.test(df_long$chain, df_long$resource, method='spearman')$estimate, 3)), size=5)
+
+p2=ggplot(df_long, aes(x=factor(disturbance), y=chain))+geom_violin(color='#d95f02')+ylab('Chain in long')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=1.1, label=paste0('corr.=', round(cor.test(df_long$chain, df_long$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p3=ggplot(df_long, aes(x=factor(ecosystem), y=chain))+geom_violin(color='#1b9e77')+ylab('Chain in long')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=1.1, label=paste0('corr.=', round(cor.test(df_long$chain, df_long$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p4=ggplot(df_mean, aes(x=factor(resource), y=chain))+geom_violin(color='#7570b3')+ylab('Chain in mean')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=2, y=1.1, label=paste0('corr.=', round(cor.test(df_mean$chain, df_mean$resource, method='spearman')$estimate, 3)), size=5)
+
+p5=ggplot(df_mean, aes(x=factor(disturbance), y=chain))+geom_violin(color='#d95f02')+ylab('Chain in mean')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=1.1, label=paste0('corr.=', round(cor.test(df_mean$chain, df_mean$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p6=ggplot(df_mean, aes(x=factor(ecosystem), y=chain))+geom_violin(color='#1b9e77')+ylab('Chain in mean')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=1.1, label=paste0('corr.=', round(cor.test(df_mean$chain, df_mean$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p7=ggplot(df_short, aes(x=factor(resource), y=chain))+geom_violin(color='#7570b3')+ylab('Chain in short')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=2, y=1.1, label=paste0('corr.=', round(cor.test(df_short$chain, df_short$resource, method='spearman')$estimate, 3)), size=5)
+
+p8=ggplot(df_short, aes(x=factor(disturbance), y=chain))+geom_violin(color='#d95f02')+ylab('Chain in short')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=1.1, label=paste0('corr.=', round(cor.test(df_short$chain, df_short$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p9=ggplot(df_short, aes(x=factor(ecosystem), y=chain))+geom_violin(color='#1b9e77')+ylab('Chain in short')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=1.1, label=paste0('corr.=', round(cor.test(df_short$chain, df_short$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p1+p4+p7+p2+p5+p8+p3+p6+p9+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Simulation_chain_enviornment.pdf', width=12, height=12)
+
+
+#==============================================
+p1=ggplot(df_long, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness in long')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=2, y=31, label=paste0('corr.=', round(cor.test(df_long$richness, df_long$resource, method='spearman')$estimate, 3)), size=5)
+
+p2=ggplot(df_long, aes(x=factor(disturbance), y=richness))+geom_violin(color='#d95f02')+ylab('Richness in long')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=31, label=paste0('corr.=', round(cor.test(df_long$richness, df_long$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p3=ggplot(df_long, aes(x=factor(ecosystem), y=richness))+geom_violin(color='#1b9e77')+ylab('Richness in long')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=31, label=paste0('corr.=', round(cor.test(df_long$richness, df_long$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p4=ggplot(df_mean, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness in mean')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=2, y=31, label=paste0('corr.=', round(cor.test(df_mean$richness, df_mean$resource, method='spearman')$estimate, 3)), size=5)
+
+p5=ggplot(df_mean, aes(x=factor(disturbance), y=richness))+geom_violin(color='#d95f02')+ylab('Richness in mean')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=31, label=paste0('corr.=', round(cor.test(df_mean$richness, df_mean$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p6=ggplot(df_mean, aes(x=factor(ecosystem), y=richness))+geom_violin(color='#1b9e77')+ylab('Richness in mean')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=31, label=paste0('corr.=', round(cor.test(df_mean$richness, df_mean$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p7=ggplot(df_short, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness in short')+xlab("Resource")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=2, y=31, label=paste0('corr.=', round(cor.test(df_short$chain, df_short$resource, method='spearman')$estimate, 3)), size=5)
+
+p8=ggplot(df_short, aes(x=factor(disturbance), y=richness))+geom_violin(color='#d95f02')+ylab('Richness in short')+xlab("Disturbance")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=31, label=paste0('corr.=', round(cor.test(df_short$richness, df_short$disturbance, method='spearman')$estimate, 3)), size=5)
+
+p9=ggplot(df_short, aes(x=factor(ecosystem), y=richness))+geom_violin(color='#1b9e77')+ylab('Richness in short')+xlab("Ecosystem")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=1.5, y=31, label=paste0('corr.=', round(cor.test(df_short$richness, df_short$ecosystem, method='spearman')$estimate, 3)), size=5)
+
+p1+p4+p7+p2+p5+p8+p3+p6+p9+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Simulation_richness_enviornment.pdf', width=12, height=12)
+```
+
+```{r regression}
+library(car)
+# Next we performmodel comparison
+#df_long=read.csv("FCL_long_simulations_summary.csv")
+#df_long=replace(df_long, is.na(df_long), 0) # fill na with zero before scalling
+
+df_mean=read.csv("FCL_mean_simulations_summary.csv")
+df_mean=replace(df_mean, is.na(df_mean), 0) # fill na with zero before scalling
+#df_short=read.csv("FCL_short_simulations_summary.csv")
+#df_short=replace(df_short, is.na(df_short), 0) # fill na with zero before scalling
+
+#[, 2:ncol(df_long)]=scale(df_long[, 2:ncol(df_long)])
+b_start=1.5
+AIC_cal= function(df){
+  #-------------Model description------------------------
+  model1=nls(FCL ~ a*richness-1, data=df, start=c(a=1), algorithm='port', 
+             lower=c(a=0), upper=c(a=10)) # linear func of richness
+  model2=nls(FCL ~ a*(1-exp(-b*richness))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b =10)) # saturating func of richness
+  model3=nls(FCL ~ -a*richness^2+b*richness-1, data=df, start=c(a=1, b=1), 
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=10, b=10)) # quadratic func of richness
+  model4=nls(FCL ~ a*chain-1, data=df, start=c(a=1),  
+             algorithm='port',lower=c(a=0), upper=(a=10)) # linear func of chain
+  model5=nls(FCL ~ a*(1-exp(-b*chain))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b=10)) # saturating func of chain
+  model6=nls(FCL ~ -a*chain^2+b*chain-1, data=df, start=c(a=1, b=1), 
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=10, b=10)) # quadratic func of chain
+ 
+  #combination of chain and richness
+  model14=nls(FCL ~ a*richness+b*chain-1, data=df, start=c(a=1, b=1), algorithm='port', 
+              lower = c(a=0, b=0), upper=c(a=10, b=10))
+  model15=nls(FCL ~ a*richness+b*(1-exp(-c*chain))-1, data=df, start=c(a=1, b=max(df$FCL)/2, c=b_start), 
+              algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=10, b=max(df$FCL)+1, c=10))
+  model16=nls(FCL ~ a*richness-b*chain^2+c*chain-1, data=df, start=c(a=1, b=1, c=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=10, b=10, c=10))
+  model24=nls(FCL ~ a*(1-exp(-b*richness))+c*chain-1, data=df, start=c(a=max(df$FCL)/2, b=b_start, c=1),
+              algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=max(df$FCL)+1, b=10, c=10))
+  model25=nls(FCL ~ a*(1-exp(-b*richness))+c*(1-exp(-d*chain))-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=max(df$FCL)/2, d=b_start), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0),
+              upper=c(a=max(df$FCL)+1, b=10, c=max(df$FCL)+1, d=10))
+  model26=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10))
+  model34=nls(FCL ~ -a*richness^2+b*richness+c*chain-1, data=df, start=c(a=1, b=1, c=1),
+              algorithm='port', lower=c(a=0, b=0, c=0),
+              upper=c(a=10, b=10, c=10))
+  model35=nls(FCL ~ -a*richness^2+b*richness+c*(1-exp(-d*chain))-1, data=df, 
+              start=c(a=1, b=1, c=max(df$FCL)/2, d=b_start), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=10, b=10, c=max(df$FCL)+1, d=10))
+  model36=nls(FCL ~ -a*richness^2+b*richness-c*chain^2+d*chain-1, data=df, 
+              start=c(a=1, b=1, c=1, d=1),
+              algorithm='port', lower=c(a=0, b =0, c=0, d=0), 
+              upper=c(a=10, b=10, c=10, d=10))
+  
+  AICs=c(AIC(model1), AIC(model2), AIC(model3), AIC(model4), AIC(model5), AIC(model6),
+         AIC(model14),AIC(model15), AIC(model16), AIC(model24), AIC(model25), AIC(model26),
+         AIC(model34),AIC(model35), AIC(model36))
+  minAIC=min(AICs)
+  deltaAIC=minAIC-AICs
+  print(deltaAIC)
+  print(minAIC)
+  #print(summary(models[which.max(deltaAIC)]))
+}
+#AIC_cal(df_long)
+AIC_cal(df_mean)
+#AIC_cal(df_short)
+```
+It seems that model26 is the best model in all cases. However, using this funciton in FCL short and long would be problematic because
+they are discrete...
+
+Now focus on FCL mean for awhile
+```{r}
+model_mean=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_mean, 
+              start=c(a=max(df_mean$FCL)/2, b=b_start, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df_mean$FCL)+1, b=10, c=10, d=10))
+summary(model_mean)
+```
+Now plot FCL against chian motif and richness and comapre the model.
+
+```{r Evaluate the model of FCL mean}
+mean_chain=mean(df_mean$chain)
+print(mean_chain)
+mean_richness=mean(df_mean$richness)
+print(mean_richness)
+g1=ggplot(df_mean, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.86*(1-exp(-0.2*x))-0.41*mean_chain^2+1.73*mean_chain-1, color='red')
+g2=ggplot(df_mean, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.86*(1-exp(-0.2*mean_richness))-0.41*x^2+1.73*x-1, color='red')
+df_mean$predict=3.86*(1-exp(-0.2*df_mean$richness))-0.41*df_mean$chain^2+1.73*df_mean$chain-1
+g3=ggplot(df_mean, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL mean')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+g1+g2+g3+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Modeling_FCLmean.png', width=12, height=8)
+```
+
+Plot the cumulative of richness
+
+```{r}
+g1=ggplot(df_mean, aes(richness, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
+g1=g1+xlab('Richness')+ylab('Probability')  
+g1=g1+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Resource")
+
+
+g2=ggplot(df_mean, aes(richness, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
+g2=g2+xlab('Richness')+ylab('Probability')  
+g2=g2+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Disturbance")
+
+g3=ggplot(df_mean, aes(richness, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
+g3=g3+xlab('Richness')+ylab('Probability')  
+g3=g3+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Ecosystem")
+
+g4=ggplot(df_mean, aes(chain, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
+g4=g4+xlab('Chain')+ylab('Probability')  
+g4=g4+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Resource")
+
+
+g5=ggplot(df_mean, aes(chain, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
+g5=g5+xlab('Chain')+ylab('Probability')  
+g5=g5+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Disturbance")
+
+g6=ggplot(df_mean, aes(chain, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
+g6=g6+xlab('Chain')+ylab('Probability')  
+g6=g6+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Ecosystem")
+
+g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Cumulative_Richness_Chain_mean.pdf', heigh=12, width=12)
+```
+
+These pattern seem to explain why the inconsistent pattern in previous studies is reported.
+Check wehtehr this holds inFCL long and mean. 
+In these cases, FCL is discrete and use Negative Bion would be better than OLS.
+
+```{r}
+df_long=read.csv("FCL_long_simulations_summary.csv")
+df_long=replace(df_long, is.na(df_long), 0) # fill na with zero before scalling
+
+df_short=read.csv("FCL_short_simulations_summary.csv")
+df_short=replace(df_short, is.na(df_short), 0) # fill na with zero before scalling
+
+#[, 2:ncol(df_long)]=scale(df_long[, 2:ncol(df_long)])
+b_start=1.5
+AIC_cal2= function(df){
+  #-------------Model description------------------------
+  model1=glm(formula = FCL + 1 ~ richness, family = poisson(link = "log"), 
+    data = df_long)
+  model2=nls(FCL ~ a*(1-exp(-b*richness))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b =10)) # saturating func of richness
+  model3=nls(FCL ~ -a*richness^2+b*richness-1, data=df, start=c(a=1, b=1), 
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=10, b=10)) # quadratic func of richness
+  model4=glm(formula = FCL + 1 ~ chain, family = poisson(link = "log"), 
+    data = df_long)# linear func of chain
+  model5=nls(FCL ~ a*(1-exp(-b*chain))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b=10)) # saturating func of chain
+  model6=nls(FCL ~ -a*chain^2+b*chain-1, data=df, start=c(a=1, b=1), 
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=10, b=10)) # quadratic func of chain
+ 
+  #combination of chain and richness
+  model14=glm(formula = FCL + 1 ~ richness*chain, family = poisson(link = "log"), 
+    data = df_long)# linear func of chain
+  model15=nls(FCL ~ a*richness+b*(1-exp(-c*chain))-1, data=df, start=c(a=1, b=max(df$FCL)/2, c=b_start), 
+              algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=10, b=max(df$FCL)+1, c=10))
+  model16=nls(FCL ~ a*richness-b*chain^2+c*chain-1, data=df, start=c(a=1, b=1, c=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=10, b=10, c=10))
+  model24=nls(FCL ~ a*(1-exp(-b*richness))+c*chain-1, data=df, start=c(a=max(df$FCL)/2, b=b_start, c=1),
+              algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=max(df$FCL)+1, b=10, c=10))
+  model25=nls(FCL ~ a*(1-exp(-b*richness))+c*(1-exp(-d*chain))-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=max(df$FCL)/2, d=b_start), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0),
+              upper=c(a=max(df$FCL)+1, b=10, c=max(df$FCL)+1, d=10))
+  model26=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=1, d=1.05), # d= 1 cause a problem of conversence
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10))
+  model34=nls(FCL ~ -a*richness^2+b*richness+c*chain-1, data=df, start=c(a=1, b=1, c=1),
+              algorithm='port', lower=c(a=0, b=0, c=0),
+              upper=c(a=10, b=10, c=10))
+  model35=nls(FCL ~ -a*richness^2+b*richness+c*(1-exp(-d*chain))-1, data=df, 
+              start=c(a=1, b=1, c=max(df$FCL)/2, d=b_start), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=10, b=10, c=max(df$FCL)+1, d=10))
+  model36=nls(FCL ~ -a*richness^2+b*richness-c*chain^2+d*chain-1, data=df, 
+              start=c(a=1, b=1, c=1, d=1),
+              algorithm='port', lower=c(a=0, b =0, c=0, d=0), 
+              upper=c(a=10, b=10, c=10, d=10))
+  
+  AICs=c(AIC(model1), AIC(model2), AIC(model3), AIC(model4), AIC(model5), AIC(model6),
+         AIC(model14),AIC(model15), AIC(model16), AIC(model24), AIC(model25), AIC(model26),
+         AIC(model34),AIC(model35), AIC(model36))
+  minAIC=min(AICs)
+  deltaAIC=minAIC-AICs
+  print(deltaAIC)
+  print(minAIC)
+  #print(summary(models[which.max(deltaAIC)]))
+}
+AIC_cal2(df_long)
+AIC_cal2(df_short)
+```
+Saturation + quadratic seem the best in both as well.
+```{r}
+model_long=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_long, 
+              start=c(a=max(df_long$FCL)/2, b=b_start, c=1, d=1.05), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df_long$FCL)+1, b=10, c=10, d=10))
+summary(model_long)
+model_short=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_short, 
+              start=c(a=max(df_short$FCL)/2, b=b_start, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df_short$FCL)+1, b=10, c=10, d=10))
+summary(model_short)
+
+```
+
+```{r}
+mean_chain=mean(df_long$chain)
+print(mean_chain)
+mean_richness=mean(df_long$richness)
+print(mean_richness)
+g1=ggplot(df_long, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 6.65*(1-exp(-0.09*x))-0.48*mean_chain^2+1.99*mean_chain-1, color='red')
+g2=ggplot(df_long, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 6.65*(1-exp(-0.09*mean_richness))-0.48*x^2+1.99*x-1, color='red')
+df_long$predict=6.65*(1-exp(-0.09*df_long$richness))-0.48*df_long$chain^2+1.99*df_long$chain-1
+g3=ggplot(df_long, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL long')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+g1+g2+g3+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Modeling_FCLlong.png', width=12, height=8)
+```
+```{r}
+g1=ggplot(df_long, aes(richness, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
+g1=g1+xlab('Richness')+ylab('Probability')  
+g1=g1+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Resource")
+
+
+g2=ggplot(df_long, aes(richness, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
+g2=g2+xlab('Richness')+ylab('Probability')  
+g2=g2+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Disturbance")
+
+g3=ggplot(df_long, aes(richness, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
+g3=g3+xlab('Richness')+ylab('Probability')  
+g3=g3+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Ecosystem")
+
+g4=ggplot(df_long, aes(chain, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
+g4=g4+xlab('Chain')+ylab('Probability')  
+g4=g4+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Resource")
+
+
+g5=ggplot(df_long, aes(chain, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
+g5=g5+xlab('Chain')+ylab('Probability')  
+g5=g5+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Disturbance")
+
+g6=ggplot(df_long, aes(chain, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
+g6=g6+xlab('Chain')+ylab('Probability')  
+g6=g6+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Ecosystem")
+
+g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Cumulative_Richness_Chain_long.pdf', heigh=12, width=12)
+```
