@@ -1,0 +1,244 @@
+---
+title: "Plot and analysis"
+output: html_notebook
+---
+
+In this notebook, we analyze whether species richness and chain motives modulate the relationship between FCL and three enviornmental factors (resource availability, disturbances, and ecosystem sizes).
+First, we investigate whether species richness and food web motives collerate with FCL or not.
+
+```{r Read csv data}
+library(ggplot2)
+library(patchwork)
+library(tidyverse)
+
+df_emp=read.csv("Cohen2010_summary.csv") # empirical data
+df_long=read.csv("./Simulations/FCL_long_simulations_summary.csv") # simulation using FCL long
+df_mean=read.csv("./Simulations/FCL_mean_simulations_summary.csv") # simulation using FCL mean
+df_short=read.csv("./Simulations/FCL_short_simulations_summary.csv") # simulation using FCL short
+
+# Preparing data analysis
+# For df_emp, we removed unnecessary columns and convert the count data of motives into fractions
+df_emp = subset(df_emp, select = -c(empty,monoA.single, bi.single) )
+df_emp=df_emp %>% select(order(colnames(df_emp)))
+df_emp=dplyr::select(df_emp, WEB_id,Ecosystem, FCL_long,FCL_short,richness,Ecosystem, everything())
+sum.motif=apply(df_emp[, 6:ncol(df_emp)], 1, sum) # sum of motives in each row
+df_emp[, 6:ncol(df_emp)] = df_emp[, 6:ncol(df_emp)]/sum.motif # converting into fractions of motives
+# we remove motives that do not  or rarely appear
+df_emp = subset(df_emp, select = -c(WEB_id, d1, d2,d3, d4, s3, d5, d6, d7,d8) )
+colnames(df_emp) = c('Ecosystems', 'FCL_long', 'FCL_short', 'Richness', 
+                 'Chain', 'Omnivory', 'Apparent', 'Exploitative')
+```
+Next we plot FCL against the richness and motives 
+
+```{r Empirical richness and motives}
+r1=ggplot(df_emp, aes(x=Richness, y=FCL_long, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=40, y=9, label=paste0('corr.=', round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$p.value, 3)), size=5)
+# Note df_emp$FCL_long includes some NA because of cyclic food webs
+r2=ggplot(df_emp, aes(x=Richness, y=FCL_short, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=40, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$p.value, 3)), size=5)
+
+m1=ggplot(df_emp, aes(x=Chain, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+
+m2=ggplot(df_emp, aes(x=Omnivory, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m3=ggplot(df_emp, aes(x=Apparent, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m4=ggplot(df_emp, aes(x=Exploitative, y=FCL_long, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+
+m5=ggplot(df_emp, aes(x=Chain, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+
+m6=ggplot(df_emp, aes(x=Omnivory, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m7=ggplot(df_emp, aes(x=Apparent, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m8=ggplot(df_emp, aes(x=Exploitative, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+g=r1+r2+m1+m5+m2+m6+m3+m7+m4+m8+plot_layout(nrow = 5, ncol=2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+
+ggsave('./empirical_pdf/FCL_empirical.pdf', width=8, height=12)
+```
+
+```{r Simulated richness and motives}
+# Note: if richness =0 or 1 => motives cannot be defined and correponding data are removed 
+r1=ggplot(df_long, aes(x=richness, y=FCL, size=3, alpha=0.005))+geom_point(color='black')+ylab('FCL long')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=10, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$richness, method='spearman')$estimate, 3)), size=5)
+r2=ggplot(df_mean, aes(x=richness, y=FCL, size=3, alpha=0.005))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=10, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$richness, method='spearman')$estimate, 3)), size=5)
+r3=ggplot(df_short, aes(x=richness, y=FCL, size=3, alpha=0.005))+geom_point(color='black')+ylab('FCL short')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=10, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$richness, method='spearman')$estimate, 3)), size=5)
+
+m1=ggplot(df_long, aes(x=chain, y=FCL, size=4, alpha=0.1))+geom_point(color='#a6cee3')+ylab('FCL long')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$chain, method='spearman')$estimate, 3)), size=5)
+
+m2=ggplot(df_long, aes(x=omnivory, y=FCL, size=4, alpha=0.1))+geom_point(color='#1f78b4')+ylab('FCL long')+xlab("Omnivory")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$omnivory, method='spearman')$estimate, 3)), size=5)
+
+m3=ggplot(df_long, aes(x=apparent, y=FCL, size=4, alpha=0.1))+geom_point(color='#b2df8a')+ylab('FCL long')+xlab("Apparent")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$apparent, method='spearman')$estimate, 3)), size=5)
+
+m4=ggplot(df_long, aes(x=exploitative, y=FCL, size=4, alpha=0.1))+geom_point(color='#33a02c')+ylab('FCL long')+xlab("Exploitative")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_long$FCL, df_long$exploitative, method='spearman')$estimate, 3)), size=5)
+
+
+m5=ggplot(df_mean, aes(x=chain, y=FCL, size=4, alpha=0.1))+geom_point(color='#a6cee3')+ylab('FCL mean')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$chain, method='spearman')$estimate, 3)), size=5)
+
+m6=ggplot(df_mean, aes(x=omnivory, y=FCL, size=4, alpha=0.1))+geom_point(color='#1f78b4')+ylab('FCL mean')+xlab("Omnivory")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$omnivory, method='spearman')$estimate, 3)), size=5)
+
+m7=ggplot(df_mean, aes(x=apparent, y=FCL, size=4, alpha=0.1))+geom_point(color='#b2df8a')+ylab('FCL mean')+xlab("Apparent")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$apparent, method='spearman')$estimate, 3)), size=5)
+
+m8=ggplot(df_mean, aes(x=exploitative, y=FCL, size=4, alpha=0.1))+geom_point(color='#33a02c')+ylab('FCL mean')+xlab("Exploitative")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_mean$FCL, df_mean$exploitative, method='spearman')$estimate, 3)), size=5)
+
+m9=ggplot(df_short, aes(x=chain, y=FCL, size=4, alpha=0.1))+geom_point(color='#a6cee3')+ylab('FCL short')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$chain, method='spearman')$estimate, 3)), size=5)
+
+m10=ggplot(df_short, aes(x=omnivory, y=FCL, size=4, alpha=0.1))+geom_point(color='#1f78b4')+ylab('FCL short')+xlab("Omnivory")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$omnivory, method='spearman')$estimate, 3)), size=5)
+
+m11=ggplot(df_short, aes(x=apparent, y=FCL, size=4, alpha=0.1))+geom_point(color='#b2df8a')+ylab('FCL short')+xlab("Apparent")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$apparent, method='spearman')$estimate, 3)), size=5)
+
+m12=ggplot(df_short, aes(x=exploitative, y=FCL, size=4, alpha=0.1))+geom_point(color='#33a02c')+ylab('FCL short')+xlab("Exploitative")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_short$FCL, df_short$exploitative, method='spearman')$estimate, 3)), size=5)
+
+r1+r2+r3+m1+m5+m9+m2+m6+m10+m3+m7+m11+m4+m8+m12+plot_layout(nrow = 5, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./Simulations/simulation_pdf/FCL_simulation_correlation.png', width=12, height=16)
+
+```
