@@ -4,8 +4,169 @@ output: html_notebook
 ---
 
 In this notebook, we analyze whether species richness and chain motives modulate the relationship between FCL and three enviornmental factors (resource availability, disturbances, and ecosystem sizes).
-First, we investigate whether species richness and food web motives correlate with FCL or not.
+As we provide summary csv file for the database, one can skip
+```{r Processing Cohen database}
+library(tidyverse)
+library(igraph)
+library(Matrix)
+FCLmean=function(A){
+  # A: an adjacency matrix of directed food web
+  N = nrow(A) # number of species in the food web
+  # Check/Convert weighted matrix
+  if(any(colSums(A)>1)){
+    for(i in 1:N){
+      if (sum(A[, i])>0){
+        A[,i]=A[,i]/sum(A[, i])
+      }
+    }
+  }
+  if (rankMatrix(t(A-diag(N)))<N){
+    # Then, we CANNNOT calculate either trophic levels or FCL in the food web 
+    return (NaN)
+  }else{
+    # We can find unique trophic levels and FCL from the following linear equation
+    TL=solve(t(A-diag(N)), rep(-1, N))
+    
+  return (max(TL)-1) # FCL= max TL -1
+  }
+}
 
+FCL=function(A, def=-1){
+  # A: an adjacency matrix of directed food web
+  # def: definition of FCL. We choose one definition from below
+  # def =-1: shortest-path
+  # def = 1: longest-path. Only acyclic graph
+  
+  N = nrow(A) # number of species in the food web
+  TL=rep(0, N)
+  B=c()
+  # Check the indexes of basal species
+  for (i in 1:N){
+    if (sum(A[, i])==0){
+      TL[i]=1 # basal species
+      B=c(B, i) # list of basal species
+    }
+  }
+  
+  # Check whether A is DAG or not
+  # calculate trophic levels 
+  
+  
+  for (i in 1:N){
+    if(TL[i]==0){
+      # analyze nob-basal species
+      if (def==0){
+          # we define FCL by mean prey's tropic level
+          TL[i] = 1+(TL[1:(i-1)]%*%A[1:(i-1), i])/sum(A[1:(i-1), i])
+      }
+      else if (def==-1){
+          # TL of species i is defined by 1+the shortest path from a basal species
+          graph=graph_from_adjacency_matrix(A,mode='directed')
+          TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+      }
+      else if (def==1){
+          #TL of species i is defined by 1+the longest path from a basal species
+          # Because igraph does not have an algorithm for the longest path
+          # we will use the shortest path with negative weights
+          graph=graph_from_adjacency_matrix(-A,mode='directed', weight=TRUE)
+          TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to species i
+      }
+    }
+  }
+ #print(TL)
+  return (max(TL)-1) # FCL= max TL -1
+}
+# define A 
+
+# read from Data base
+Analysis = function (d){
+  # d row csv file
+  # return FCLs and number fo the motives
+  D=d[, 4:ncol(d)] # because of separaters of the file, we have empty two cols, Third col represents id of preys
+  #rownames(D)=d[, 3]
+  #colnames(D)=d[1,4:ncol(d) ]
+  A=data.frame(D)
+  colnames(A)=colnames(D)
+  rownames(A)=as.character(unlist(d[, 3]))
+  for (i in 1:nrow(A)){
+    if (as.integer(rownames(A))[i]<10){
+      rownames(A)[i] = paste0("0",rownames(A)[i])
+    }
+  }
+  
+  for (i in 1:ncol(A)){
+    if (as.integer(colnames(A))[i]<10){
+      colnames(A)[i] = paste0("0",colnames(A)[i])
+    }
+  }
+  # We need to convert a data into NxN matrix
+  N_list=sort(unique(c(rownames(A), colnames(A)))) # total number of species in the food web
+  col_check=!(N_list %in% colnames(A)) # which species is missing in columns?
+  row_check=!(N_list %in% rownames(A)) # which species is missing in rows?
+  for(i in 1:length(N_list)){
+    if (col_check[i]==TRUE){
+       add = rep(0, nrow(A))
+       a=cbind(A, add)
+       #if(i<10){
+       #  colnames(a)=c(colnames(A), paste0("0",N_list[0]))
+       #}else{
+        # colnames(a)=c(colnames(A), paste0(N_list[i]))
+       #}
+       colnames(a)=c(colnames(A), paste0(N_list[i]))
+       A= a %>% select(all_of(names(a) %>% sort())) # update A and sorting
+    }
+    if (row_check[i]==TRUE){
+       add = rep(0, ncol(A))
+       a=rbind(A, add)
+       #if(i<10){
+      #   rownames(a)=c(rownames(A), paste0("0",N_list[i]))
+      # }else{
+       #  rownames(a)=c(rownames(A), paste0(N_list[i]))
+       #}
+       rownames(a)=c(rownames(A), paste0(N_list[i]))
+       A=a %>% arrange(rownames(a)) # update A and sorting
+    }
+  } 
+  A=matrix(unlist(A), ncol=ncol(A))  # convert matrix so that we can use it in igraph
+  graph=graph_from_adjacency_matrix(A,mode='directed')
+  if (is.dag(graph)==TRUE){
+  FCL_mean=FCLmean(A) # FCL based on mean prey trophic level
+    # convert weighted adj into unweighted one
+    A =matrix(as.integer(A>0), nrow=nrow(A))
+    FCL_long = FCL(A, 1)
+  }else{
+  # In this case, two FCLs cannot be defined
+  FCL_mean=FCLmean(A)
+  FCL_long=NaN
+  # convert weighted adj into unweighted one
+  A =matrix(as.integer(A>0), nrow=nrow(A))
+  }
+  FCL_short =FCL(A, -1) # this can be defined in any food webs. Return Inf without basal species
+  
+  motif=matrix(triad_census(graph), nrow=1)
+  # the names of the motives follow previous studies
+  data=data.frame(FCL_short, FCL_mean, FCL_long, nrow(A), motif)
+  colnames(data) = c('FCL_short', 'FCL_mean', 'FCL_long',"richness", 
+                    "empty","monoA-single","bi-single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+  return (data)
+}
+#---------------MAIN-----------------------------
+for(i in 1:213){
+  fname=paste0('./EmpiricalFoodWeb/ECOWeB1.1/DATFILES Predation Matrices/WEB',i,'.DAT') # path of the files
+  d=read_csv(fname)
+  if (i==1){
+  data=Analysis(d)
+  }else{
+    data=rbind(data, Analysis(d))
+  }
+write.csv(data, "Cohen2010_summary.csv", row.names = FALSE)
+}
+  
+```
+Now we analyze the data.
+First, we investigate whether species richness and food web motives correlate with FCL or not.
 ```{r Read csv data}
 library(ggplot2)
 library(patchwork)
@@ -20,12 +181,12 @@ df_short=read.csv("./Simulations/FCL_short_simulations_summary.csv") # simulatio
 # For df_emp, we removed unnecessary columns and convert the count data of motives into fractions
 df_emp = subset(df_emp, select = -c(empty,monoA.single, bi.single) )
 df_emp=df_emp %>% select(order(colnames(df_emp)))
-df_emp=dplyr::select(df_emp, WEB_id,Ecosystem, FCL_long,FCL_short,richness,Ecosystem, everything())
-sum.motif=apply(df_emp[, 6:ncol(df_emp)], 1, sum) # sum of motives in each row
-df_emp[, 6:ncol(df_emp)] = df_emp[, 6:ncol(df_emp)]/sum.motif # converting into fractions of motives
+df_emp=dplyr::select(df_emp, WEB_id,Ecosystem, FCL_long,FCL_mean, FCL_short,richness,Ecosystem, everything())
+sum.motif=apply(df_emp[, 7:ncol(df_emp)], 1, sum) # sum of motives in each row
+df_emp[, 7:ncol(df_emp)] = df_emp[, 7:ncol(df_emp)]/sum.motif # converting into fractions of motives
 # we remove motives that do not  or rarely appear
 df_emp = subset(df_emp, select = -c(WEB_id, d1, d2,d3, d4, s3, d5, d6, d7,d8) )
-colnames(df_emp) = c('Ecosystems', 'FCL_long', 'FCL_short', 'Richness', 
+colnames(df_emp) = c('Ecosystems', 'FCL_long', 'FCL_mean', 'FCL_short', 'Richness', 
                  'Chain', 'Omnivory', 'Apparent', 'Exploitative')
 ```
 Next we plot FCL against the richness and motives 
@@ -39,7 +200,15 @@ axis.text.x = element_text(size=14),
   legend.position="none"
   )+annotate(geom="text", x=40, y=9, label=paste0('corr.=', round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$p.value, 3)), size=5)
 # Note df_emp$FCL_long includes some NA because of cyclic food webs
-r2=ggplot(df_emp, aes(x=Richness, y=FCL_short, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL short')+theme(
+r2=ggplot(df_emp, aes(x=Richness, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL mean')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+annotate(geom="text", x=40, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$p.value, 3)), size=5)
+
+r3=ggplot(df_emp, aes(x=Richness, y=FCL_short, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL short')+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -80,7 +249,39 @@ axis.text.x = element_text(size=14),
   )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
 
 
-m5=ggplot(df_emp, aes(x=Chain, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL short')+theme(
+m5=ggplot(df_emp, aes(x=Chain, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL mean')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+
+m6=ggplot(df_emp, aes(x=Omnivory, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL mean')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m7=ggplot(df_emp, aes(x=Apparent, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m8=ggplot(df_emp, aes(x=Exploitative, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+m9=ggplot(df_emp, aes(x=Chain, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#a6cee3')+ylab('FCL short')+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -88,7 +289,7 @@ axis.text.x = element_text(size=14),
   legend.position="none"
   )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
 
-m6=ggplot(df_emp, aes(x=Omnivory, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL short')+theme(
+m10=ggplot(df_emp, aes(x=Omnivory, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#1f78b4')+ylab('FCL short')+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -96,7 +297,7 @@ axis.text.x = element_text(size=14),
   legend.position="none"
   )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
 
-m7=ggplot(df_emp, aes(x=Apparent, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL short')+theme(
+m11=ggplot(df_emp, aes(x=Apparent, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#b2df8a')+ylab('FCL short')+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -104,7 +305,7 @@ axis.text.x = element_text(size=14),
   legend.position="none"
   )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
 
-m8=ggplot(df_emp, aes(x=Exploitative, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL short')+theme(
+m12=ggplot(df_emp, aes(x=Exploitative, y=FCL_short, size=4, alpha=0.5))+geom_point(color='#33a02c')+ylab('FCL short')+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -112,9 +313,9 @@ axis.text.x = element_text(size=14),
   legend.position="none"
   )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
 
-g=r1+r2+m1+m5+m2+m6+m3+m7+m4+m8+plot_layout(nrow = 5, ncol=2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+g=r1+r2+r3+m1+m5+m9+m2+m6+m10+m3+m7+m11+m4+m8+m12+plot_layout(nrow = 5, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 
-ggsave('./empirical_pdf/FCL_empirical.pdf', width=8, height=12)
+ggsave('./empirical_pdf/FCL_empirical.pdf', width=12, height=12)
 ```
 
 ```{r Simulated richness and motives}
@@ -266,8 +467,8 @@ AIC_cal2= function(df){
              algorithm='port', lower=c(a=0, b=0), upper=c(a=10, b=10)) # quadratic func of chain
  
   #combination of chain and richness
-  model14=glm(formula = FCL + 1 ~ Richness*Chain, family = poisson(link = "log"), 
-    data = df)# linear func of chain
+  model14=nls(formula = FCL + 1 ~ a*Richness+b*Chain,  lower=c(a=0, b=0), algorithm='port', upper=c(a=max(df$FCL)+1, b=max(df$FCL)+1), 
+              start=c(a=1, b=1), data = df)# linear func of chain
   model15=nls(FCL ~ a*Richness+b*(1-exp(-c*Chain))-1, data=df, start=c(a=0.1, b=max(df$FCL)/2, c=b_start), 
               algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=10, b=max(df$FCL)+1, c=10))
   model16=nls(FCL ~ a*Richness-b*Chain^2+c*Chain-1, data=df, start=c(a=0.1, b=1, c=1), 
@@ -311,6 +512,9 @@ AIC_cal2= function(df){
 df_emp$FCL=df_emp$FCL_long
 #FCL long
 AIC_cal2(na.omit(df_emp)) # we omit FCL na in cyclic food webs
+#FCL_mean
+df_emp$FCL=df_emp$FCL_mean
+AIC_cal2(df_emp)
 #FCL short
 df_emp$FCL=df_emp$FCL_short
 AIC_cal2(df_emp)
@@ -324,6 +528,12 @@ summary(nls(FCL_long ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=na.omit(
               start=c(a=max(na.omit(df_emp)$FCL_long)/2, b=b_start, c=1, d=1.05), # d= 1 cause a problem of conversence
               algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
               upper=c(a=max(na.omit(df_emp)$FCL_long)+1, b=10, c=10, d=10)))
+#FCL mean
+summary(nls(FCL_mean ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=na.omit(df_emp), 
+              start=c(a=max(na.omit(df_emp)$FCL_mean)/2, b=b_start, c=1, d=1.0), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(na.omit(df_emp)$FCL_mean)+1, b=10, c=10, d=10)))
+
 # FCL short
 summary(nls(FCL_short ~ a*(1-exp(-b*Richness))+c*Chain-1, data=df_emp, start=c(a=max(df_emp$FCL_short)/2, b=b_start, c=1),
               algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=max(df_emp$FCL_short)+1, b=10, c=10)))
@@ -338,14 +548,14 @@ axis.text.x = element_text(size=14),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 2.85*(1-exp(-0.19*x))+2.12*mean(df_emp$Chain)-1, color='red')
+  )+stat_function(fun = function(x) 2.85*(1-exp(-0.19*x))+2.12*mean(df_emp$Chain)-1, color='green')
 g2=ggplot(df_emp, aes(x=Chain, y=FCL_short, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Chain")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 2.85*(1-exp(-0.19*mean(df_emp$Richness)))+2.12*x-1, color='red')
+  )+stat_function(fun = function(x) 2.85*(1-exp(-0.19*mean(df_emp$Richness)))+2.12*x-1, color='green')
 
 g3=ggplot(df_emp, aes(x=FCL_short, y=predict_short, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL short')+ylab("Model prediction")+theme(
 axis.text.x = element_text(size=14),
@@ -363,14 +573,14 @@ axis.text.x = element_text(size=14),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*x))-7.3*mean(df_emp$Chain)^2+9.45*mean(df_emp$Chain)-1, color='red')
+  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*x))-7.3*mean(df_emp$Chain)^2+9.45*mean(df_emp$Chain)-1, color='green')
 g5=ggplot(df_emp, aes(x=Chain, y=FCL_long, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Chain")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*mean(df_emp$Richness)))-7.3*x^2+9.45*x-1, color='red')
+  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*mean(df_emp$Richness)))-7.3*x^2+9.45*x-1, color='green')
 g6=ggplot(df_emp, aes(x=FCL_long, y=predict_long, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL long')+ylab("Model prediction")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -378,8 +588,32 @@ axis.text.x = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
   )+stat_function(fun=function(x) x, color='blue')
-g4+g5+g6+g1+g2+g3+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('./empirical_pdf/Modeling_empirical.png', width=12, height=8)
+
+df_emp$predict_mean=3.01*(1-exp(-0.14*df_emp$Richness))-2.82*df_emp$Chain^2+4.92*df_emp$Chain-1
+
+g7=ggplot(df_emp, aes(x=Richness, y=FCL_mean, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*x))-2.82*mean(df_emp$Chain)^2+4.92*mean(df_emp$Chain)-1, color='green')
+g8=ggplot(df_emp, aes(x=Chain, y=FCL_mean, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*mean(df_emp$Richness)))-2.82*x^2+4.92*x-1, color='green')
+g9=ggplot(df_emp, aes(x=FCL_mean, y=predict_mean, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 5))+xlab('FCL mean')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+g4+g5+g6+g7+g8+g9+g1+g2+g3+plot_layout(nrow = 3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./empirical_pdf/Modeling_empirical.pdf', width=16, height=8)
 ```
 
 ```{r best models in simulaiton}
@@ -477,14 +711,14 @@ axis.text.x = element_text(size=14),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 6.92*(1-exp(-0.08*x))-1.49*mean(df_long$chain, na.rm=TRUE)^2+3.15*mean(df_long$chain, na.rm=TRUE)-1, color='red')
+  )+stat_function(fun = function(x) 6.92*(1-exp(-0.08*x))-1.49*mean(df_long$chain, na.rm=TRUE)^2+3.15*mean(df_long$chain, na.rm=TRUE)-1, color='green')
 g2=ggplot(df_long, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Chain")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 6.92*(1-exp(-0.08*mean(df_long$richness)))-1.49*x^2+3.15*x-1, color='red')
+  )+stat_function(fun = function(x) 6.92*(1-exp(-0.08*mean(df_long$richness)))-1.49*x^2+3.15*x-1, color='green')
 g3=ggplot(df_long, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL long')+ylab("Model prediction")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -501,14 +735,14 @@ axis.text.x = element_text(size=14),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 3.81*(1-exp(-0.17*x))-0.91*mean(df_mean$chain, na.rm=TRUE)^2+2.43*mean(df_mean$chain, na.rm=TRUE)-1, color='red')
+  )+stat_function(fun = function(x) 3.81*(1-exp(-0.17*x))-0.91*mean(df_mean$chain, na.rm=TRUE)^2+2.43*mean(df_mean$chain, na.rm=TRUE)-1, color='green')
 g5=ggplot(df_mean, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Chain")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 3.81*(1-exp(-0.17*mean(df_mean$richness)))-0.91*x^2+2.43*x-1, color='red')
+  )+stat_function(fun = function(x) 3.81*(1-exp(-0.17*mean(df_mean$richness)))-0.91*x^2+2.43*x-1, color='green')
 g6=ggplot(df_mean, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL mean')+ylab("Model prediction")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -525,14 +759,14 @@ axis.text.x = element_text(size=14),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 2.98*(1-exp(-0.24*x))-0.69*mean(df_short$chain, na.rm=TRUE)^2+2.13*mean(df_short$chain, na.rm=TRUE)-1, color='red')
+  )+stat_function(fun = function(x) 2.98*(1-exp(-0.24*x))-0.69*mean(df_short$chain, na.rm=TRUE)^2+2.13*mean(df_short$chain, na.rm=TRUE)-1, color='green')
 g8=ggplot(df_short, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Chain")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 2.98*(1-exp(-0.24*mean(df_short$richness)))-0.69*x^2+2.13*x-1, color='red')
+  )+stat_function(fun = function(x) 2.98*(1-exp(-0.24*mean(df_short$richness)))-0.69*x^2+2.13*x-1, color='green')
 g9=ggplot(df_short, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL short')+ylab("Model prediction")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -744,10 +978,17 @@ axis.text.x = element_text(size=14, angle=30),
   )+guides(color = 'none')
 #ggsave("Cohen_Ecosystem_long.pdf")
 
-
+g4=ggplot(df_new, aes(x=Ecosystem, y=FCL_mean, color=Ecosystem)) + ylab('FCL mean')+
+  geom_count(aes(size=..prop.., group=Ecosystem))+theme(
+axis.text.x = element_text(size=14, angle=30),
+  axis.title.x = element_text(size=24),
+   axis.text.y = element_text(size=16),
+  axis.title.y = element_text(size=24),
+  #legend.position="none"
+  )+guides(color = 'none')
 
 #ggplot(data=df_new, aes(x=Ecosystem, y=FCL_short, color=Ecosystem)) +geom_jitter(position=position_jitter(0.2))+ylab('FCL short')+theme(
-g4=ggplot(df_new, aes(x=Ecosystem, y=FCL_short, color=Ecosystem)) + ylab('FCL short')+
+g5=ggplot(df_new, aes(x=Ecosystem, y=FCL_short, color=Ecosystem)) + ylab('FCL short')+
   geom_count(aes(size=..prop.., group=Ecosystem))+theme(
 axis.text.x = element_text(size=14, angle=30),
   axis.title.x = element_text(size=24),
@@ -756,8 +997,8 @@ axis.text.x = element_text(size=14, angle=30),
   #legend.position="none"
   )+guides(color = 'none')
 #ggsave("Cohen_Ecosystem_short.pdf")
-g1+g2+g3+g4+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('./empirical_pdf/Empirical_SI.pdf', heigh=12, width=12)
+g1+g2+plot_spacer()+g3+g4+g5+plot_layout(nrow = 2, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./empirical_pdf/Empirical_SI.pdf', heigh=12, width=16)
 ```
 Next, we plot the cumulative probabilities over the two environmental factors
 ```{r resource and disturbance}
