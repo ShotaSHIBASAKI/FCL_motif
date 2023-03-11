@@ -1180,3 +1180,59 @@ g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme
 ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver3.pdf', heigh=12, width=12)
 
 ```
+
+
+```{r correlation heat map}
+library(tidyverse)
+library(igraph)
+library(Matrix)
+library(ggplot2)
+library(patchwork)
+library(ggcorrplot)
+
+df_emp=read.csv("Cohen2010_summary.csv") # empirical data
+df_long=read.csv("./FCL_long_simulations_summary.csv") # simulation using FCL long
+df_mean=read.csv("./FCL_mean_simulations_summary.csv") # simulation using FCL mean
+df_short=read.csv("./FCL_short_simulations_summary.csv") # simulation using FCL short
+
+# Preparing data analysis
+# For df_emp, we removed unnecessary columns and convert the count data of motives into fractions
+df_emp = subset(df_emp, select = -c(empty,monoA.single, bi.single) )
+df_emp=df_emp %>% select(order(colnames(df_emp)))
+df_emp=dplyr::select(df_emp, WEB_id,Ecosystem, FCL_long,FCL_mean, FCL_short,richness,Ecosystem, everything())
+sum.motif=apply(df_emp[, 7:ncol(df_emp)], 1, sum) # sum of motives in each row
+df_emp[, 7:ncol(df_emp)] = df_emp[, 7:ncol(df_emp)]/sum.motif # converting into fractions of motives
+# we remove motives that do not  or rarely appear
+df_emp = subset(df_emp, select = -c(WEB_id, d1, d2,d3, d4, s3, d5, d6, d7,d8) )
+colnames(df_emp) = c('Ecosystems', 'FCL_long', 'FCL_mean', 'FCL_short', 'Richness', 
+                     'Chain', 'Omnivory', 'Apparent', 'Exploitative')
+
+df_long=df_long[, c(2:4,6:ncol(df_long))]
+colnames(df_long)=c('Resource', 'Disturbance',  'Ecosystem',  'FCL',
+                    'Chain',  'Omnivory',  'Apparent', 'Exploitative',  'Richness')
+df_long=df_long[, c('Resource', 'Disturbance',  'Ecosystem',  'FCL','Richness',
+                    'Chain',  'Omnivory',  'Apparent', 'Exploitative' )]
+df_mean=df_mean[, c(2:4, 6:ncol(df_mean))]
+colnames(df_mean)=c('Resource', 'Disturbance',  'Ecosystem',  'FCL','Richness',
+                    'Chain',  'Omnivory',  'Apparent', 'Exploitative' )
+df_short=df_short[, c(2:4, 6:ncol(df_short))]
+colnames(df_short)=c('Resource', 'Disturbance',  'Ecosystem',  'FCL','Richness',
+                    'Chain', 'Omnivory',  'Apparent', 'Exploitative' )
+
+corr1=cor(df_emp[, 2:ncol(df_emp)], use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
+g1=ggcorrplot(corr1, type = "lower", lab = TRUE)
+
+corr2=cor(df_long, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
+g2=ggcorrplot(corr2, type = "lower", lab = TRUE)
+
+corr3=cor(df_mean, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
+g3=ggcorrplot(corr3, type = "lower", lab = TRUE)
+
+corr4=cor(df_short, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
+g4=ggcorrplot(corr4, type = "lower", lab = TRUE)
+
+g=g1+g2+g3+g4+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./HeatMapCorrelation.pdf', heigh=12, width=12)
+
+
+```
