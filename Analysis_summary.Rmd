@@ -866,9 +866,9 @@ Next we plot richness and chain over the environments.
 We plot three figures for each definition of FCL
 ```{r modulater and enviornments}
 PlotCumulative =function(df, fname){
-  g1=ggplot(df, aes(richness, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
-  g1=g1+xlab('Richness')+ylab('Cumulative Prob.')  
-  g1=g1+xlim(c(0, 32))+theme(
+  g1=ggplot(df)+ stat_density(aes(x=richness, linetype=as.factor(resource)), color='#7570b3', geom="line", linewidth=1, position = "identity", adjust=2)
+  g1=g1+xlab('Richness')+ylab('Density')  
+  g1=g1+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
   axis.text.x = element_text(size=14),
     axis.title.x = element_text(size=20),
      axis.text.y = element_text(size=14),
@@ -876,27 +876,27 @@ PlotCumulative =function(df, fname){
     legend.position = 'none')+labs(linetype = "Resource")
   
   
-  g2=ggplot(df, aes(richness, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
-  g2=g2+xlab('Richness')+ylab('Cumulative Prob.')  
-  g2=g2+xlim(c(0, 32))+theme(
+  g2=ggplot(df)+ stat_density(aes(x=richness, linetype=as.factor(disturbance)), color='#d95f02', geom="line", linewidth=1, position='identity', adjust=2)
+  g2=g2+xlab('Richness')+ylab('Density')  
+  g2=g2+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
   axis.text.x = element_text(size=14),
     axis.title.x = element_text(size=20),
      axis.text.y = element_text(size=14),
     axis.title.y = element_text(size=20),
     legend.position = 'none')+labs(linetype = "Disturbance")
   
-  g3=ggplot(df, aes(richness, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
-  g3=g3+xlab('Richness')+ylab('Cumulative Prob.')  
-  g3=g3+xlim(c(0, 32))+theme(
+  g3=ggplot(df)+ stat_density(aes(richness, linetype=factor(ecosystem)), color='#1b9e77', geom="line", linewidth=1,position='identity', adjust=2)
+  g3=g3+xlab('Richness')+ylab('Density')  
+  g3=g3+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
   axis.text.x = element_text(size=14),
     axis.title.x = element_text(size=20),
      axis.text.y = element_text(size=14),
     axis.title.y = element_text(size=20),
     legend.position = 'none')+labs(linetype = "Ecosystem")
   
-  g4=ggplot(df, aes(chain, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
-  g4=g4+xlab('Chain')+ylab('Cumulative Prob.')  
-  g4=g4+xlim(c(0, 1))+theme(
+  g4=ggplot(df)+ stat_density(aes(chain, linetype=factor(resource)), color='#7570b3', geom="line", linewidth=1, position="identity", adjust=2)
+  g4=g4+xlab('Chain')+ylab('Density')  
+  g4=g4+xlim(c(0, 1))+ylim(c(0, 5))+theme(
   axis.text.x = element_text(size=14),
     axis.title.x = element_text(size=20),
      axis.text.y = element_text(size=14),
@@ -905,9 +905,9 @@ PlotCumulative =function(df, fname){
   legend.text=element_text(size=14))+labs(linetype = "Resource")
   
   
-  g5=ggplot(df, aes(chain, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
-  g5=g5+xlab('Chain')+ylab('Cumulative Prob.')  
-  g5=g5+xlim(c(0, 1))+theme(
+  g5=ggplot(df)+ stat_density(aes(chain, linetype=factor(disturbance)), color='#d95f02', geom="line", linewidth=1, position="identity", adjust=2)
+  g5=g5+xlab('Chain')+ylab('Density')  
+  g5=g5+xlim(c(0, 1))+ylim(c(0, 5))+theme(
   axis.text.x = element_text(size=14),
     axis.title.x = element_text(size=20),
      axis.text.y = element_text(size=14),
@@ -915,9 +915,9 @@ PlotCumulative =function(df, fname){
     legend.title=element_text(size=20),
   legend.text=element_text(size=14))+labs(linetype = "Disturbance")
   
-  g6=ggplot(df, aes(chain, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
-  g6=g6+xlab('Chain')+ylab('Cumulative Prob.')  
-  g6=g6+xlim(c(0, 1))+theme(
+  g6=ggplot(df)+ stat_density( aes(chain, linetype=factor(ecosystem)), color='#1b9e77', geom='line', linewidth=1, position="identity", adjust=2)
+  g6=g6+xlab('Chain')+ylab('Density')  
+  g6=g6+xlim(c(0, 1))+ylim(c(0,5))+theme(
   axis.text.x = element_text(size=14),
     axis.title.x = element_text(size=20),
      axis.text.y = element_text(size=14),
@@ -1002,9 +1002,9 @@ ggsave('./empirical_pdf/Empirical_SI.pdf', heigh=12, width=16)
 ```
 Next, we plot the cumulative probabilities over the two environmental factors
 ```{r resource and disturbance}
-g1=ggplot(df_long, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_ecdf(geom = "step")
-g1=g1+xlab('Richness')+ylab('Cumulative Prob.')  
-g1=g1+xlim(c(0, 32))+theme(
+g1=ggplot(df_long, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g1=g1+xlab('Richness')+ylab('Density')  
+g1=g1+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1012,9 +1012,9 @@ axis.text.x = element_text(size=14),
   legend.position = 'none')+labs(linetype = "Resource", color='Disturbance')
 
 
-g2=ggplot(df_mean, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_ecdf(geom = "step")
-g2=g2+xlab('Richness')+ylab('Cumulative Prob.')  
-g2=g2+xlim(c(0, 32))+theme(
+g2=ggplot(df_mean, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g2=g2+xlab('Richness')+ylab('Density')  
+g2=g2+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1022,35 +1022,35 @@ axis.text.x = element_text(size=14),
   legend.position = 'none')+labs(linetype = "Resource", color='Disturbance')
 
 
-g3=ggplot(df_short, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_ecdf(geom = "step")
-g3=g3+xlab('Richness')+ylab('Cumulative Prob.')  
-g3=g3+xlim(c(0, 32))+theme(
+g3=ggplot(df_short, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g3=g3+xlab('Richness')+ylab('Density')  
+g3=g3+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position = 'none')+labs(linetype = "Resource", color='Disturbance')
 
-g4=ggplot(df_long, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_ecdf(geom = "step")
-g4=g4+xlab('Chain')+ylab('Cumulative Prob.')  
-g4=g4+xlim(c(0, 1))+theme(
+g4=ggplot(df_long, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g4=g4+xlab('Chain')+ylab('Density')  
+g4=g4+xlim(c(0, 1))+ylim(c(0, 5))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20))+labs(linetype = "Resource", color='Disturbance')
 
 
-g5=ggplot(df_mean, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_ecdf(geom = "step")
-g5=g5+xlab('Chain')+ylab('Cumulative Prob.')  
-g5=g5+xlim(c(0, 1))+theme(
+g5=ggplot(df_mean, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g5=g5+xlab('Chain')+ylab('Density')  
+g5=g5+xlim(c(0, 1))+ylim(c(0, 5))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20))+labs(linetype = "Resource", color='Disturbance')
 
-g6=ggplot(df_short, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_ecdf(geom = "step")
-g6=g6+xlab('Chain')+ylab('Cumulative Prob.')  
-g6=g6+xlim(c(0, 1))+theme(
+g6=ggplot(df_short, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g6=g6+xlab('Chain')+ylab('Density')  
+g6=g6+xlim(c(0, 1))+ylim(c(0, 5))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1062,9 +1062,18 @@ ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver1.pdf', heigh=
 ```
 
 ```{r resource and ecosystem}
-g1=ggplot(df_long, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g1=g1+xlab('Richness')+ylab('Cumulative Prob.')  
-g1=g1+xlim(c(0, 32))+theme(
+g1=ggplot(df_long, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g1=g1+xlab('Richness')+ylab('Density')  
+g1=g1+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Resource", color='Ecosystem')
+
+g2=ggplot(df_mean, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g2=g2+xlab('Richness')+ylab('Density')  
+g2=g2+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1072,45 +1081,35 @@ axis.text.x = element_text(size=14),
   legend.position = 'none')+labs(linetype = "Resource", color='Ecosystem')
 
 
-g2=ggplot(df_mean, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g2=g2+xlab('Richness')+ylab('Cumulative Prob.')  
-g2=g2+xlim(c(0, 32))+theme(
+g3=ggplot(df_short, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g3=g3+xlab('Richness')+ylab('Density')  
+g3=g3+xlim(c(0, 32))+ylim(c(0, 0.2))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position = 'none')+labs(linetype = "Resource", color='Ecosystem')
 
-
-g3=ggplot(df_short, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g3=g3+xlab('Richness')+ylab('Cumulative Prob.')  
-g3=g3+xlim(c(0, 32))+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position = 'none')+labs(linetype = "Resource", color='Ecosystem')
-
-g4=ggplot(df_long, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g4=g4+xlab('Chain')+ylab('Cumulative Prob.')  
-g4=g4+xlim(c(0, 1))+theme(
+g4=ggplot(df_long, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g4=g4+xlab('Chain')+ylab('Density')  
+g4=g4+xlim(c(0, 1))+ylim(c(0, 5))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20))+labs(linetype = "Resource", color='Ecosystem')
 
 
-g5=ggplot(df_mean, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g5=g5+xlab('Chain')+ylab('Cumulative Prob.')  
-g5=g5+xlim(c(0, 1))+theme(
+g5=ggplot(df_mean, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g5=g5+xlab('Chain')+ylab('Density')  
+g5=g5+xlim(c(0, 1))+ylim(c(0, 5))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20))+labs(linetype = "Resource", color='Ecosystem')
 
-g6=ggplot(df_short, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g6=g6+xlab('Chain')+ylab('Cumulative Prob.')  
-g6=g6+xlim(c(0, 1))+theme(
+g6=ggplot(df_short, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g6=g6+xlab('Chain')+ylab('Density')  
+g6=g6+xlim(c(0, 1))+ylim(c(0, 5))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1122,9 +1121,9 @@ ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver2.pdf', heigh=
 ```
 
 ```{r disturbance and ecosystem}
-g1=ggplot(df_long, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g1=g1+xlab('Richness')+ylab('Cumulative Prob.')  
-g1=g1+xlim(c(0, 32))+theme(
+g1=ggplot(df_long, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g1=g1+xlab('Richness')+ylab('Density')  
+g1=g1+xlim(c(0, 32))+ylim(c(0, 0.25))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1132,9 +1131,9 @@ axis.text.x = element_text(size=14),
   legend.position = 'none')+labs(linetype = "Disturbance", color='Ecosystem')
 
 
-g2=ggplot(df_mean, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g2=g2+xlab('Richness')+ylab('Cumulative Prob.')  
-g2=g2+xlim(c(0, 32))+theme(
+g2=ggplot(df_mean, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g2=g2+xlab('Richness')+ylab('Density')  
+g2=g2+xlim(c(0, 32))+ylim(c(0, 0.25))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1142,35 +1141,35 @@ axis.text.x = element_text(size=14),
   legend.position = 'none')+labs(linetype = "Disturbance", color='Ecosystem')
 
 
-g3=ggplot(df_short, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g3=g3+xlab('Richness')+ylab('Cumulative Prob.')  
-g3=g3+xlim(c(0, 32))+theme(
+g3=ggplot(df_short, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g3=g3+xlab('Richness')+ylab('Density')  
+g3=g3+xlim(c(0, 32))+ylim(c(0, 0.25))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position = 'none')+labs(linetype = "Disturbance", color='Ecosystem')
 
-g4=ggplot(df_long, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g4=g4+xlab('Chain')+ylab('Cumulative Prob.')  
-g4=g4+xlim(c(0, 1))+theme(
+g4=ggplot(df_long, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g4=g4+xlab('Chain')+ylab('Density')  
+g4=g4+xlim(c(0, 1))+ylim(c(0, 7))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20))+labs(linetype = "Disturbance", color='Ecosystem')
 
 
-g5=ggplot(df_mean, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g5=g5+xlab('Chain')+ylab('Cumulative Prob.')  
-g5=g5+xlim(c(0, 1))+theme(
+g5=ggplot(df_mean, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g5=g5+xlab('Chain')+ylab('Density')  
+g5=g5+xlim(c(0, 1))+ylim(c(0, 7))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20))+labs(linetype = "Disturbance", color='Ecosystem')
 
-g6=ggplot(df_short, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_ecdf(geom = "step")
-g6=g6+xlab('Chain')+ylab('Cumulative Prob.')  
-g6=g6+xlim(c(0, 1))+theme(
+g6=ggplot(df_mean, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
+g6=g6+xlab('Chain')+ylab('Density')  
+g6=g6+xlim(c(0, 1))+ylim(c(0, 7))+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
@@ -1180,8 +1179,6 @@ g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme
 ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver3.pdf', heigh=12, width=12)
 
 ```
-
-
 ```{r correlation heat map}
 library(tidyverse)
 library(igraph)
@@ -1189,12 +1186,10 @@ library(Matrix)
 library(ggplot2)
 library(patchwork)
 library(ggcorrplot)
-
 df_emp=read.csv("Cohen2010_summary.csv") # empirical data
-df_long=read.csv("./FCL_long_simulations_summary.csv") # simulation using FCL long
-df_mean=read.csv("./FCL_mean_simulations_summary.csv") # simulation using FCL mean
-df_short=read.csv("./FCL_short_simulations_summary.csv") # simulation using FCL short
-
+df_long=read.csv("./Simulations/FCL_long_simulations_summary.csv") # simulation using FCL long
+df_mean=read.csv("./Simulations/FCL_mean_simulations_summary.csv") # simulation using FCL mean
+df_short=read.csv("./Simulations/FCL_short_simulations_summary.csv") # simulation using FCL short
 # Preparing data analysis
 # For df_emp, we removed unnecessary columns and convert the count data of motives into fractions
 df_emp = subset(df_emp, select = -c(empty,monoA.single, bi.single) )
@@ -1206,7 +1201,6 @@ df_emp[, 7:ncol(df_emp)] = df_emp[, 7:ncol(df_emp)]/sum.motif # converting into 
 df_emp = subset(df_emp, select = -c(WEB_id, d1, d2,d3, d4, s3, d5, d6, d7,d8) )
 colnames(df_emp) = c('Ecosystems', 'FCL_long', 'FCL_mean', 'FCL_short', 'Richness', 
                      'Chain', 'Omnivory', 'Apparent', 'Exploitative')
-
 df_long=df_long[, c(2:4,6:ncol(df_long))]
 colnames(df_long)=c('Resource', 'Disturbance',  'Ecosystem',  'FCL',
                     'Chain',  'Omnivory',  'Apparent', 'Exploitative',  'Richness')
@@ -1218,21 +1212,114 @@ colnames(df_mean)=c('Resource', 'Disturbance',  'Ecosystem',  'FCL','Richness',
 df_short=df_short[, c(2:4, 6:ncol(df_short))]
 colnames(df_short)=c('Resource', 'Disturbance',  'Ecosystem',  'FCL','Richness',
                     'Chain', 'Omnivory',  'Apparent', 'Exploitative' )
-
 corr1=cor(df_emp[, 2:ncol(df_emp)], use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
 g1=ggcorrplot(corr1, type = "lower", lab = TRUE)
-
 corr2=cor(df_long, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
 g2=ggcorrplot(corr2, type = "lower", lab = TRUE)
-
 corr3=cor(df_mean, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
 g3=ggcorrplot(corr3, type = "lower", lab = TRUE)
-
 corr4=cor(df_short, use = "pairwise.complete.obs", method='spearman') # pearson and spearman show similar results
 g4=ggcorrplot(corr4, type = "lower", lab = TRUE)
-
 g=g1+g2+g3+g4+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 ggsave('./HeatMapCorrelation.pdf', heigh=12, width=12)
+```
+
+```{r Scatter plot motifs vs richness}
+Scatter=function(data, gname, alpha=1){
+  g1=ggplot(data, aes(x=Richness, y=Chain), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Chain, method='spearman')$p.value, 3)), size=6)
+  g2=ggplot(data, aes(x=Richness, y=Omnivory), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Omnivory, method='spearman')$p.value, 3)), size=6)
+  g3=ggplot(data, aes(x=Richness, y=Apparent), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Apparent, method='spearman')$p.value, 3)), size=6)
+  g4=ggplot(data, aes(x=Richness, y=Exploitative), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Exploitative, method='spearman')$p.value, 3)), size=6)
+  g=g1+g2+g3+g4+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+  ggsave(paste0('ScatterCorr_', gname, '.png'), heigh=12, width=12)
+}
+```
 
 
+```{r Mering two competitive motifs}
+#df_emp$Competition=df_emp$Apparent + df_emp$Exploitative
+#df_long$Competition=df_long$Apparent + df_long$Exploitative
+#df_mean$Competition=df_mean$Apparent + df_mean$Exploitative
+#df_short$Competition=df_short$Apparent + df_short$Exploitative
+
+ScatterV2=function(data, gname, alpha=1){
+  g1=ggplot(data, aes(x=Richness, y=Chain), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Chain, method='spearman')$p.value, 3)), size=6)
+  g2=ggplot(data, aes(x=Richness, y=Omnivory), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Omnivory, method='spearman')$p.value, 3)), size=6)
+  g3=ggplot(data, aes(x=Richness, y=Competition), alpha=alpha) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Competition, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Competition, method='spearman')$p.value, 3)), size=6)
+  g=g1+g2+g3+plot_layout(nrow = 3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+  ggsave(paste0('ScatterCorrV2_', gname, '.png'), heigh=12, width=8)
+}
+
+
+```
+
+
+```{r Quantile regression}
+library(quantreg)
+QuantileReg=function(data, gname){
+  #Richness vs Chain
+  g1=ggplot(data, aes(x=Richness, y=Chain)) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))
+  # change abline below to non-parametric ana nonlinear+
+  g1=g1+geom_quantile(method = "rqss", quantiles = c(0.1, 0.9), colour="blue", linewidth = 2, alpha = 0.5)
+  g1=g1+geom_quantile(method = "rqss", quantiles = c(0.5), colour="green", linewidth = 2.5, alpha = 0.5)
+  
+  # Richness vs Omnivory
+  g2=ggplot(data, aes(x=Richness, y=Omnivory)) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))
+  # change abline below to non-parametric ana nonlinear+
+  g2=g2+geom_quantile(method = "rqss", quantiles = c(0.1, 0.9), colour="blue", linewidth = 2, alpha = 0.5)
+  g2=g2+geom_quantile(method = "rqss", quantiles = c(0.5), colour="green", linewidth = 2.5, alpha = 0.5)
+  
+  # Richness vs Competition
+  g3=ggplot(data, aes(x=Richness, y=Competition)) + geom_point()+ylim(0,1)+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20))
+  # change abline below to non-parametric ana nonlinear+
+  g3=g3+geom_quantile(method = "rqss", quantiles = c(0.1, 0.9), colour="blue", linewidth = 2, alpha = 0.5)
+  g3=g3+geom_quantile(method = "rqss", quantiles = c(0.5), colour="green", linewidth = 2.5, alpha = 0.5)
+  g=g1+g2+g3+plot_layout(nrow = 3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+  ggsave(paste0('QuantileRegression_', gname, '.png'), heigh=12, width=8)
+  
+}
+QuantileReg(df_emp, 'Empirical')
+QuantileReg(df_long, 'SimulationLong')
+QuantileReg(df_mean, 'SimulationMean')
+QuantileReg(df_short, 'SimulationShort')
 ```
