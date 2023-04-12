@@ -1,0 +1,239 @@
+---
+title: "R WefOfLife"
+output: html_notebook
+---
+
+We also analyze another food web database (WeBOfLife), which contains more
+newish data and weighted edges.
+
+```{r Obtain adjacency matrices}
+library(ttutils)
+library(igraph)
+library(tidyverse)
+library(Matrix)
+# there may be some species which do not appear in row or column
+Adj_genetor=function(path){
+  #path is path to data to read
+  df=read.csv(path, row.names=1, check.names=FALSE)
+  # generate adj matrix from df
+  prey=row.names(df)
+  predator=colnames(df)
+  species=unique(c(prey, predator))
+  
+  # generate adj matrix
+  n=length(species)
+  A=matrix(0, n,n)
+  for(i in 1:n){
+    predator_index=which (predator == species[i])
+    for(j in 1:n){
+      prey_index=which (prey == species[j])
+      if (identical(predator_index, integer(0)) || identical(prey_index, integer(0))){
+        #the focal species is not included in prey or predator vectors
+        A[j, i]=0
+      }
+      else{
+        A[j,i]=df[prey_index, predator_index]
+      } 
+    }
+  }
+  return (A)
+}
+FCLmean=function(A){
+  # A: an adjacency matrix of directed food web
+  N = nrow(A) # number of species in the food web
+  # Check/Convert weighted matrix
+  if(any(colSums(A)>1)){
+    for(i in 1:N){
+      if (sum(A[, i])>0){
+        A[,i]=A[,i]/sum(A[, i])
+      }
+    }
+  }
+  if (rankMatrix(t(A-diag(N)))<N){
+    # Then, we CANNNOT calculate either trophic levels or FCL in the food web 
+    return (NaN)
+  }else{
+    # We can find unique trophic levels and FCL from the following linear equation
+    TL=solve(t(A-diag(N)), rep(-1, N))
+    
+  return (max(TL)-1) # FCL= max TL -1
+  }
+}
+
+FCL=function(A, def=-1){
+  # A: an adjacency matrix of directed food web
+  # def: definition of FCL. We choose one definition from below
+  # def =-1: shortest-path
+  # def = 1: longest-path. Only acyclic graph
+  
+  N = nrow(A) # number of species in the food web
+  TL=rep(0, N)
+  B=c()
+  # Check the indexes of basal species
+  for (i in 1:N){
+    if (sum(A[, i])==0){
+      TL[i]=1 # basal species
+      B=c(B, i) # list of basal species
+    }
+  }
+  
+  # Here, we ignore quantative info
+  A =matrix(as.integer(A>0), nrow=nrow(A))
+  # calculate trophic levels 
+  
+  
+  for (i in 1:N){
+    if(TL[i]==0){
+      # analyze nob-basal species
+      if (def==-1){
+          # TL of species i is defined by 1+the shortest path from a basal species
+          graph=graph_from_adjacency_matrix(A,mode='directed', weighted=NULL)
+          TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+      }
+      else if (def==1){
+          #TL of species i is defined by 1+the longest path from a basal species
+          # Because igraph does not have an algorithm for the longest path
+          # we will use the shortest path with negative weights
+          graph=graph_from_adjacency_matrix(-A,mode='directed', weight=TRUE)
+          TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to species i
+      }
+    }
+  }
+ #print(TL)
+  return (max(TL)-1) # FCL= max TL -1
+}
+Network_analysis=function(A, index){
+  # adj matrix
+  graph=graph_from_adjacency_matrix(A,mode='directed', weighted = TRUE) # in FCL short and long, we do not use weighted edges
+  FCL_mean=FCLmean(A)
+  FCL_short=FCL(A, -1)
+  if (is.dag(graph)==TRUE){
+    FCL_long=FCL(A, 1)
+  }
+  else
+  {
+     FCL_long=NaN
+  }
+  motif=matrix(triad_census(graph), nrow=1)
+  # the names of the motives follow previous studies
+  data=data.frame(index, FCL_short, FCL_mean, FCL_long, nrow(A), motif)
+  colnames(data) = c('ID', 'FCL short', 'FCL mean', 'FCL long',"Richness", 
+                    "empty","monoA-single","bi-single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+  return(data)
+  
+}
+# main functions
+# we focus on the data with qualitative edges remove 011 - 015
+# we also remove 017 because they assume biparate graph (FCL is one)
+Fnames=c('FW_001.csv', 'FW_002.csv', 'FW_003.csv', 'FW_004.csv', 'FW_005.csv',
+         'FW_006_T.csv', 'FW_007.csv', 'FW_008.csv', 'FW_009.csv', 'FW_010.csv',
+         #'FW_011.csv', 'FW_012_01.csv', 'FW_012_02.csv', 'FW_013_01.csv',
+         #'FW_013_02.csv', 'FW_013_03.csv', 'FW_013_04.csv', 'FW_013_05.csv',
+         #'FW_014_01.csv', 'FW_014_02.csv', 'FW_014_03.csv', 'FW_014_04.csv',
+         #'FW_015_01.csv', 'FW_015_02.csv', 'FW_015_03.csv', 'FW_015_04.csv',
+         'FW_016_01.csv'
+         #'FW_017_01.csv', 'FW_017_02.csv', 'FW_017_03.csv',
+         #'FW_017_04.csv', 'FW_017_05.csv', 'FW_017_06.csv'
+         )
+#original FW_006 seems wrong?
+for(i in 1:length(Fnames)){
+  path=paste0('./WebOfLife/', Fnames[i])
+  A=Adj_genetor(path)
+  if(i==1){
+    data=Network_analysis(A, Fnames[i])
+  }
+  else{
+    data=rbind(data, Network_analysis(A, Fnames[i]))
+  }
+}
+write.csv(data, 'Summary_WebOfLife.csv', sep=',', row.names = FALSE)
+```
+Below, we focus on the analysis of FCL mean (as FCL short and long does not relate to path).
+We calculate the frations of the motifs to focus on (the sums are not always one due to other rare motifs)
+```{r analysis}
+df=read.csv('Summary_WebOfLife.csv')
+df = subset(df, select = -c(empty,monoA.single, bi.single) ) # they are not motifs
+sum.motif=apply(df[, 6:ncol(df)], 1, sum) # sum of motives in each row
+
+df[, 6:ncol(df)] = df[, 6:ncol(df)]/sum.motif # converting into fractions of motives
+df = subset(df, select = c(FCL.mean, Richness, s1, s2, s4, s5) )
+colnames(df) = c('FCL_mean','Richness', 'Chain', 'Omnivory', 'Apparent', 'Exploitative')
+```
+
+```{r Correlations against motifs}
+library(ggplot2)
+library(patchwork)
+g1=ggplot(df, aes(x=Richness, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL mean')+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",panel.grid = element_blank()
+  )+annotate(geom="text", x=100, y=4, label=paste0('corr.=', round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Richness, method='spearman')$p.value, 3)), size=5)
+
+g2=ggplot(df, aes(x=Chain, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL mean')+xlim(c(0,1))+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",panel.grid = element_blank()
+  )+annotate(geom="text", x=0.4, y=4, label=paste0('corr.=', round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Chain, method='spearman')$p.value, 3)), size=5)
+
+g3=ggplot(df, aes(x=Omnivory, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL mean')+xlim(c(0,1))+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",panel.grid = element_blank()
+  )+annotate(geom="text", x=0.4, y=4, label=paste0('corr.=', round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+g4=ggplot(df, aes(x=Apparent, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL mean')+xlim(c(0,1))+ theme_bw()+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",panel.grid = element_blank()
+  )+annotate(geom="text", x=0.4, y=4, label=paste0('corr.=', round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Apparent, method='spearman')$p.value, 3)), size=5)
+
+g5=ggplot(df, aes(x=Exploitative, y=FCL_mean, size=4, alpha=0.5))+geom_point(color='black')+ylab('FCL mean')+xlim(c(0,1))+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",panel.grid = element_blank()
+  )+annotate(geom="text", x=0.4, y=4, label=paste0('corr.=', round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Exploitative, method='spearman')$p.value, 3)), size=5)
+g=g1+g2+g3+g4+g5+plot_layout(nrow = 5)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./FCL_WebOfLife.pdf', width=12, height=12)
+```
+Next, we compred the regression model with the new empirical data.
+As wehave about ten data here, we use the parameters from Cohen.
+```{r Comparison with the regression model}
+df$Prediction= 3.01*(1-exp(-0.14*df$Richness))-2.82*(df$Chain)^2+4.92*df$Chain-1
+#g1=ggplot(df, aes(x=Richness, y=FCL_mean, size=4))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+#axis.text.x = element_text(size=14),
+#  axis.title.x = element_text(size=20),
+#   axis.text.y = element_text(size=14),
+#  axis.title.y = element_text(size=20),
+#  legend.position="none",panel.grid = element_blank()
+#  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*x))-2.82*(mean(df$Chain))^2+4.92*mean(df$Chain)-1, color='green')
+#g2=ggplot(df, aes(x=Chain, y=FCL_mean, size=4))+geom_point(color='black')+ylab('FCL short')+xlab("Chain")+xlim(c(0,1))+theme(
+#axis.text.x = element_text(size=14),
+#  axis.title.x = element_text(size=20),
+#   axis.text.y = element_text(size=14),
+#  axis.title.y = element_text(size=20),
+#  legend.position="none",panel.grid = element_blank()
+#  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*mean(df$Richness)))-2.82*x^2+4.92*x-1, color='green')
+
+g3=ggplot(df, aes(x=FCL_mean, y=Prediction, size=4))+geom_point(color='black')+ylim(c(0, 5))+xlab('FCL mean')+ylab("Model prediction")+xlim(c(0, 5))+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",panel.grid = element_blank()
+  )+stat_function(fun=function(x) x, color='blue')
+#g=g1+g2+g3+plot_layout(nrow = 5)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+g3
+ggsave('./FCL_WebOfLife_fitting.pdf', width=12, height=12)
+```

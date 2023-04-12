@@ -192,6 +192,7 @@ Then, we calculate realized food chain length and food web motives
 
 ```{r Dynamics}
 library(GillespieSSA)
+library(igraph)
 colonization_extinction_single=function(A_f, B){
   #-----------------------------------
   # Return symbolic representations of colonization and extinction rates used in Gli. alg
@@ -350,9 +351,12 @@ Main=function(num_network, TL_def, N=32, Basal=4){
   # num_network (int): number of food webs per B
   #--------------------------------
   # design resource parm set. This is based on N and B
-  E=c(0.1, 0.5, 0.9)
-  R=c(1, 2, 4, 8)
-  Eco=c(0.5, 1, 2) 
+  #E=c(0.1, 0.5, 0.9) # preliminary analysis
+  E=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,0.8, 0.9)
+  #R=c(1, 2, 4, 8) #preliminary analysis
+  R=c(4)
+  #Eco=c(0.5, 1, 2) #preliminary analysis
+  Eco=c(0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2)
   setwd(paste0("./Species", N, "/basal",Basal))
   for (j in 1:num_network){
     # Read adjacency matrix of food web
@@ -367,7 +371,7 @@ Main=function(num_network, TL_def, N=32, Basal=4){
              #Generate parm
               parm = ParmGeneraotr(N, Basal, resource, disturbance, eco_size)
               # Run simulation
-              fcl=single_patch(A_f, parm, TL_def, replicate=100)
+              fcl=single_patch(A_f, parm, TL_def, replicate=20)
               fcl=cbind(rep(resource,nrow(fcl)), rep(disturbance,nrow(fcl)),rep(eco_size, nrow(fcl)), fcl)
               names(fcl)=c("resource", "disturbance", "ecosystem", "replicate",
                            paste0("Sp", seq(from = 1, to = N, by = 1)))
@@ -379,12 +383,12 @@ Main=function(num_network, TL_def, N=32, Basal=4){
   }
   setwd("../../")
 }
-print("Mean Prey TL")
-Main(30, 0)
-print("Shortest path")
-Main(30, -1)
-print("Longest path")
-Main(30, 1)
+#print("Mean Prey TL")
+#Main(30, 0)
+#print("Shortest path")
+#Main(30, -1)
+#print("Longest path")
+#Main(30, 1)
 ```
 
 
@@ -1014,34 +1018,81 @@ summary(model_mean)
 Now plot FCL against chian motif and richness and comapre the model.
 
 ```{r Evaluate the model of FCL mean}
-mean_chain=mean(df_mean$chain)
-print(mean_chain)
-mean_richness=mean(df_mean$richness)
-print(mean_richness)
-g1=ggplot(df_mean, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+
+df_long$predict=6.92*(1-exp(-0.08*df_long$richness))-1.49*df_long$chain^2+3.15*df_long$chain-1
+g1=ggplot(df_long, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Richness")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 3.86*(1-exp(-0.2*x))-0.41*mean_chain^2+1.73*mean_chain-1, color='red')
-g2=ggplot(df_mean, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Chain")+theme(
+  )+stat_function(fun = function(x) 6.92*(1-exp(-0.08*x))-1.49*mean(df_long$chain)^2+3.15*mean(df_long$chain)-1, color='red')
+g2=ggplot(df_long, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL long')+xlab("Chain")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
-  )+stat_function(fun = function(x) 3.86*(1-exp(-0.2*mean_richness))-0.41*x^2+1.73*x-1, color='red')
-df_mean$predict=3.86*(1-exp(-0.2*df_mean$richness))-0.41*df_mean$chain^2+1.73*df_mean$chain-1
-g3=ggplot(df_mean, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL mean')+ylab("Model prediction")+theme(
+  )+stat_function(fun = function(x) 6.92*(1-exp(-0.08*mean(df_long$richness)))-1.49*x^2+3.15*x-1, color='red')
+g3=ggplot(df_long, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL long')+ylab("Model prediction")+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
   legend.position="none"
   )+stat_function(fun=function(x) x, color='blue')
-g1+g2+g3+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('Modeling_FCLmean.png', width=12, height=8)
+
+# FCL mean 
+df_mean$predict=3.81*(1-exp(-0.17*df_mean$richness))-0.91*df_mean$chain^2+2.43*df_mean$chain-1
+g4=ggplot(df_mean, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.81*(1-exp(-0.17*x))-0.91*mean(df_mean$chain)^2+2.43*mean(df_mean$chain)-1, color='red')
+g5=ggplot(df_mean, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL mean')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 3.81*(1-exp(-0.17*mean(df_mean$richness)))-0.91*x^2+2.43*x-1, color='red')
+g6=ggplot(df_mean, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL mean')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+
+#FCL short
+df_short$predict=2.98*(1-exp(-0.24*df_short$richness))-0.69*df_short$chain^2+2.13*df_short$chain-1
+g7=ggplot(df_short, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 2.98*(1-exp(-0.24*x))-0.69*mean(df_short$chain)^2+2.13*mean(df_short$chain)-1, color='red')
+g8=ggplot(df_short, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 2.98*(1-exp(-0.24*mean(df_chain$richness)))-0.69*x^2+2.13*x-1, color='red')
+g9=ggplot(df_short, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL short')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+
+g1+g2+g3+g4+g5+g6+g7+g8+g9+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+
+ggsave('./Simulations/simulation_pdf/Modeling_simulations.png', width=12, height=8)
 ```
 
 Plot the cumulative of richness
@@ -1126,13 +1177,13 @@ b_start=1.5
 AIC_cal2= function(df){
   #-------------Model description------------------------
   model1=glm(formula = FCL + 1 ~ richness, family = poisson(link = "log"), 
-    data = df_long)
+    data = df)
   model2=nls(FCL ~ a*(1-exp(-b*richness))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
              algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b =10)) # saturating func of richness
   model3=nls(FCL ~ -a*richness^2+b*richness-1, data=df, start=c(a=1, b=1), 
              algorithm='port', lower=c(a=0, b=0), upper=c(a=10, b=10)) # quadratic func of richness
   model4=glm(formula = FCL + 1 ~ chain, family = poisson(link = "log"), 
-    data = df_long)# linear func of chain
+    data = df)# linear func of chain
   model5=nls(FCL ~ a*(1-exp(-b*chain))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
              algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b=10)) # saturating func of chain
   model6=nls(FCL ~ -a*chain^2+b*chain-1, data=df, start=c(a=1, b=1), 
@@ -1140,7 +1191,7 @@ AIC_cal2= function(df){
  
   #combination of chain and richness
   model14=glm(formula = FCL + 1 ~ richness*chain, family = poisson(link = "log"), 
-    data = df_long)# linear func of chain
+    data = df)# linear func of chain
   model15=nls(FCL ~ a*richness+b*(1-exp(-c*chain))-1, data=df, start=c(a=1, b=max(df$FCL)/2, c=b_start), 
               algorithm='port', lower=c(a=0, b=0, c=0), upper=c(a=10, b=max(df$FCL)+1, c=10))
   model16=nls(FCL ~ a*richness-b*chain^2+c*chain-1, data=df, start=c(a=1, b=1, c=1), 
@@ -1186,12 +1237,6 @@ model_long=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_long,
               algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
               upper=c(a=max(df_long$FCL)+1, b=10, c=10, d=10))
 summary(model_long)
-model_short=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_short, 
-              start=c(a=max(df_short$FCL)/2, b=b_start, c=1, d=1), 
-              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
-              upper=c(a=max(df_short$FCL)+1, b=10, c=10, d=10))
-summary(model_short)
-
 ```
 
 ```{r}
@@ -1286,4 +1331,108 @@ legend.text=element_text(size=14))+labs(linetype = "Ecosystem")
 
 g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 ggsave('Cumulative_Richness_Chain_long.pdf', heigh=12, width=12)
+```
+```{r}
+model_short=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_short, 
+              start=c(a=max(df_short$FCL)/2, b=b_start, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df_short$FCL)+1, b=10, c=10, d=10))
+summary(model_short)
+
+```
+
+
+```{r}
+mean_chain=mean(df_short$chain)
+print(mean_chain)
+mean_richness=mean(df_short$richness)
+print(mean_richness)
+g1=ggplot(df_short, aes(x=richness, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Richness")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 2.98*(1-exp(-0.3*x))-0.57*mean_chain^2+1.83*mean_chain-1, color='red')
+g2=ggplot(df_short, aes(x=chain, y=FCL, size=3, alpha=0.000005))+geom_point(color='black')+ylab('FCL short')+xlab("Chain")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun = function(x) 2.98*(1-exp(-0.3*mean_richness))-0.57*x^2+1.83*x-1, color='red')
+df_short$predict=2.98*(1-exp(-0.3*df_short$richness))-0.57*df_short$chain^2+1.83*df_short$chain-1
+g3=ggplot(df_short, aes(x=FCL, y=predict, size=3, alpha=0.000005))+geom_point(color='black')+ylim(c(-1, 6))+xlab('FCL short')+ylab("Model prediction")+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none"
+  )+stat_function(fun=function(x) x, color='blue')
+g1+g2+g3+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Modeling_FCLshort.png', width=12, height=8)
+```
+
+```{r}
+g1=ggplot(df_short, aes(richness, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
+g1=g1+xlab('Richness')+ylab('Probability')  
+g1=g1+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Resource")
+
+
+g2=ggplot(df_short, aes(richness, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
+g2=g2+xlab('Richness')+ylab('Probability')  
+g2=g2+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Disturbance")
+
+g3=ggplot(df_short, aes(richness, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
+g3=g3+xlab('Richness')+ylab('Probability')  
+g3=g3+xlim(c(0, 32))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position = 'none')+labs(linetype = "Ecosystem")
+
+g4=ggplot(df_short, aes(chain, linetype=factor(resource)))+ stat_ecdf(geom = "step", color='#7570b3')
+g4=g4+xlab('Chain')+ylab('Probability')  
+g4=g4+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Resource")
+
+
+g5=ggplot(df_short, aes(chain, linetype=factor(disturbance)))+ stat_ecdf(geom = "step", color='#d95f02')
+g5=g5+xlab('Chain')+ylab('Probability')  
+g5=g5+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Disturbance")
+
+g6=ggplot(df_short, aes(chain, linetype=factor(ecosystem)))+ stat_ecdf(geom = "step", color='#1b9e77')
+g6=g6+xlab('Chain')+ylab('Probability')  
+g6=g6+xlim(c(0, 1))+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.title=element_text(size=20),
+legend.text=element_text(size=14))+labs(linetype = "Ecosystem")
+
+g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Cumulative_Richness_Chain_short.pdf', heigh=12, width=12)
 ```

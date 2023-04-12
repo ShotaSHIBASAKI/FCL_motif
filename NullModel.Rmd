@@ -1,0 +1,638 @@
+---
+title: "Null model analysis"
+output: html_notebook
+---
+In this noit book  we analyze a null, where a food web is given by a random network, and
+the presence of species is randomly chosen
+
+```{r Null model generator}
+library(tidyverse)
+library(igraph)
+library(Matrix)
+FCLmean=function(A){
+  # A: an adjacency matrix of directed food web
+  N = nrow(A) # number of species in the food web
+  # Check/Convert weighted matrix
+  if(any(colSums(A)>1)){
+    for(i in 1:N){
+      if (sum(A[, i])>0){
+        A[,i]=A[,i]/sum(A[, i])
+      }
+    }
+  }
+  if (rankMatrix(t(A-diag(N)))<N){
+    # Then, we CANNNOT calculate either trophic levels or FCL in the food web 
+    return (NaN)
+  }else{
+    # We can find unique trophic levels and FCL from the following linear equation
+    TL=solve(t(A-diag(N)), rep(-1, N))
+    
+  return (max(TL)-1) # FCL= max TL -1
+  }
+}
+
+FCL=function(A, def=-1){
+  # A: an adjacency matrix of directed food web
+  # def: definition of FCL. We choose one definition from below
+  # def =-1: shortest-path
+  # def = 1: longest-path. Only acyclic graph
+  
+  N = nrow(A) # number of species in the food web
+  TL=rep(0, N)
+  B=c()
+  # Check the indexes of basal species
+  for (i in 1:N){
+    if (sum(A[, i])==0){
+      TL[i]=1 # basal species
+      B=c(B, i) # list of basal species
+    }
+  }
+  if(is.null(B)){
+    #No basal species thus FCL cannot be defined
+    return (NaN)
+  }
+  # Check whether A is DAG or not
+  # calculate trophic levels 
+  if(def==1 && is_dag(graph_from_adjacency_matrix(A,mode='directed', weight=TRUE))==FALSE){
+    #print('Cyclic')
+    return (NaN)
+  }else{
+    for (i in 1:N){
+      if(TL[i]==0){
+        # analyze nob-basal species
+        if (def==-1){
+            # TL of species i is defined by 1+the shortest path from a basal species
+            graph=graph_from_adjacency_matrix(A,mode='directed')
+            TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+        }
+        else if (def==1){
+            #TL of species i is defined by 1+the longest path from a basal species
+            # Because igraph does not have an algorithm for the longest path
+            # we will use the shortest path with negative weights
+            graph=graph_from_adjacency_matrix(-A,mode='directed', weight=TRUE)
+            TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to species 
+        }
+      }
+    }
+   #print(TL)
+    return (max(TL)-1) # FCL= max TL -1
+  }
+}
+
+
+Null_generator=function(replicate=30, sample_num=5, richness=32, connectance=0.11){
+  FCL_null=c()
+  for(i in 1:replicate){
+    g= erdos.renyi.game(richness, connectance, type = "gnp",
+                        directed=TRUE, loop=TRUE) # 32-species with connectance is about 0.11
+    adj=matrix(as_adjacency_matrix(g), nrow=richness)
+    write.csv(adj, paste0('Null_FW', i, ".csv"))
+    
+    # calculate FCL and count motifs of the whole graph
+    if (is.null(FCL_null)){
+      FCL_null=data.frame(FCL_long=FCL(adj, 1), FCL_mean=FCLmean(adj), 
+                          FCL_short=FCL(adj, -1), Richness=richness)
+      motif=matrix(triad_census(g), nrow=1)
+      colnames(motif) = c("empty","monoA.single","bi.single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+      motif = subset(motif, select = -c(empty,monoA.single, bi.single) )
+      motif=motif/sum(motif)
+      FW_motif=subset(motif, select=c(s1, s2, s4, s5))
+      colnames(FW_motif)=c('Chain', "Omnivory", "Apparent", "Exploitative")
+      FCL_null=cbind(FCL_null, FW_motif)
+    }else{
+      data=c(FCL_long=FCL(adj, 1), FCL_mean=FCLmean(adj), 
+             FCL_short=FCL(adj, -1), Richness=richness)
+      motif=matrix(triad_census(g), nrow=1)
+      colnames(motif) = c("empty","monoA.single","bi.single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+      motif = subset(motif, select = -c(empty,monoA.single, bi.single) )
+      motif=motif/sum(motif)
+      FW_motif=subset(motif, select=c(s1, s2, s4, s5))
+      colnames(FW_motif)=c('Chain', "Omnivory", "Apparent", "Exploitative")
+      data=c(data, FW_motif)
+      FCL_null=rbind(FCL_null, data)
+    }
+    # calculate FCL and motifs in subgraph
+    for(j in 3:31){
+      for (k in 1:sample_num){
+        sub_g=induced_subgraph(g, vids = sample(1:richness, j, replace=FALSE))
+        adj=matrix(as_adjacency_matrix(sub_g), nrow=j)
+        data=c(FCL_long=FCL(adj, 1), FCL_mean=FCLmean(adj), 
+               FCL_short=FCL(adj, -1), Richness=j)
+        motif=matrix(triad_census(sub_g), nrow=1)
+        colnames(motif) = c("empty","monoA.single","bi.single",
+                      "s5","s4","s1","d4","d3","s2",
+                      "s3","d8","d2","d1","d5","d7","d6")
+        motif = subset(motif, select = -c(empty,monoA.single, bi.single) )
+        motif=motif/sum(motif)
+        FW_motif=subset(motif, select=c(s1, s2, s4, s5))
+        colnames(FW_motif)=c('Chain', "Omnivory", "Apparent", "Exploitative")
+        data=c(data, FW_motif)
+        FCL_null=rbind(FCL_null, data)
+      }
+    }
+  }
+  return(FCL_null)
+}
+df_null=Null_generator()
+write.csv(df_null, "FCL_Null_Model_summary.csv", row.names = FALSE)
+```
+
+Below, we plot the correlations against FCL. Note that null values are omitted
+
+```{r correlations}
+library(patchwork)
+r1=ggplot(df_null, aes(x=Richness, y=FCL_long))+geom_bin2d() +xlim(c(0, 32))+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank()
+  )+annotate(geom="text", x=10, y=7, label=paste0('corr.=', round(cor.test(na.omit(df_null)$FCL_long, na.omit(df_null)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df_null)$FCL_long, na.omit(df_null)$Richness, method='spearman')$p.value, 3)), size=5)
+# Note df_null$FCL_long includes some NA because of cyclic food webs
+
+r2=ggplot(df_null, aes(x=Richness, y=FCL_mean))+geom_bin2d() +xlim(c(0, 32))+ scale_y_log10() +scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+ylab('FCL mean')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank()
+  )+annotate(geom="text", x=10, y=5000, label=paste0('corr.=', round(cor.test(df_null$FCL_mean, df_null$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_mean, df_null$Richness, method='spearman')$p.value, 3)), size=5)
+
+r3=ggplot(df_null, aes(x=Richness, y=FCL_short))+geom_bin2d()+xlim(c(0, 32))+scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank()
+  )+annotate(geom="text", x=10, y=10, label=paste0('corr.=', round(cor.test(df_null$FCL_short, df_null$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_short, df_null$Richness, method='spearman')$p.value, 3)), size=5)
+
+m1=ggplot(df_null, aes(x=Chain, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low = "gray90", high = '#a6cee3')+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank(),
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=7, label=paste0('corr.=', round(cor.test(df_null$FCL_long, df_null$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_long, df_null$Chain, method='spearman')$p.value, 3)), size=5)
+
+m2=ggplot(df_null, aes(x=Omnivory, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low="gray90", high='#1f78b4')+xlim(c(0, 1))+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid=element_blank(),
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=7, label=paste0('corr.=', round(cor.test(df_null$FCL_long, df_null$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_long, df_null$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m3=ggplot(df_null, aes(x=Apparent, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low='gray90',high='#b2df8a')+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank(),
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=7, label=paste0('corr.=', round(cor.test(df_null$FCL_long, df_null$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_long, df_null$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m4=ggplot(df_null, aes(x=Exploitative, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#33a02c')+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=7, label=paste0('corr.=', round(cor.test(df_null$FCL_long, df_null$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_long, df_null$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+
+m5=ggplot(df_null, aes(x=Chain, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#a6cee3')+ylab('FCL mean')+ scale_y_log10()+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5000, label=paste0('corr.=', round(cor.test(df_null$FCL_mean, df_null$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_mean, df_null$Chain, method='spearman')$p.value, 3)), size=5)
+
+m6=ggplot(df_null, aes(x=Omnivory, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#1f78b4')+ scale_y_log10()+ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5000, label=paste0('corr.=', round(cor.test(df_null$FCL_mean, df_null$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_mean, df_null$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m7=ggplot(df_null, aes(x=Apparent, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#b2df8a')+ scale_y_log10()+ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5000, label=paste0('corr.=', round(cor.test(df_null$FCL_mean, df_null$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_mean, df_null$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m8=ggplot(df_null, aes(x=Exploitative, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#33a02c')+ scale_y_log10()+ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5000, label=paste0('corr.=', round(cor.test(df_null$FCL_mean, df_null$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_mean, df_null$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+m9=ggplot(df_null, aes(x=Chain, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low='gray90',high='#a6cee3')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=10, label=paste0('corr.=', round(cor.test(df_null$FCL_short, df_null$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_short, df_null$Chain, method='spearman')$p.value, 3)), size=5)
+
+m10=ggplot(df_null, aes(x=Omnivory, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low="gray90", high='#1f78b4')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=10, label=paste0('corr.=', round(cor.test(df_null$FCL_short, df_null$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_short, df_null$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m11=ggplot(df_null, aes(x=Apparent, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#b2df8a')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=10, label=paste0('corr.=', round(cor.test(df_null$FCL_short, df_null$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_short, df_null$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m12=ggplot(df_null, aes(x=Exploitative, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#33a02c')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=10, label=paste0('corr.=', round(cor.test(df_null$FCL_short, df_null$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_null$FCL_short, df_null$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+g=r1+r2+r3+m1+m5+m9+m2+m6+m10+m3+m7+m11+m4+m8+m12+plot_layout(nrow = 5, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+
+ggsave('./simulation_pdf/Null_correlations.pdf', width=12, height=12)
+```
+We can see positive correlations among FCL and richness, although there were no constant correlations with motifs.
+Next, we will see whether species richness linearly increases FCL or we can see satulation. 
+We compare AICs
+```{r linear regression}
+
+model_comp=function(df=df_null, b_start=1.05){
+  model1=nls(formula = FCL + 1 ~ a*Richness, data = df, algorithm='port', 
+             lower=c(a=0), upper=c(a=max(df$FCL)+1), start=c(a=1))
+  model2=nls(FCL ~ a*(1-exp(-b*Richness))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             algorithm='port', lower=c(a=0, b=0), upper=c(a=max(df$FCL)+1, b =10)) # saturating func of richness
+  
+  model3=nls(FCL ~ -a*Richness^2+b*Richness-1, data=df, start=c(a=1, b=1), 
+             algorithm='port', lower=c(a=0.01, b=0.01), upper=c(a=10, b=10))
+  
+  AICs=c(AIC(model1), AIC(model2), AIC(model3))
+  minAIC=min(AICs)
+  deltaAIC=AICs-minAIC
+  print(AICs)
+  
+  print(minAIC)
+  
+  print(deltaAIC)
+}
+df=na.omit(df_null)
+df$FCL=df$FCL_long
+print("FCL long")
+model_comp(df)
+df$FCL=df$FCL_mean
+print("FCL mean", 3)
+model_comp(df)
+df$FCL=df$FCL_short
+print("FCL short")
+model_comp(df)
+
+```
+
+We notice that we can calculate mean and std of the fraction of motifs in a random graph
+```{r Fraction of motifs over richness}
+Motif_frac_dist=function(target_motif, richness, connectance=0.11){
+  # target motif
+  # 1: chain
+  # 2: omnivory
+  # 3: apparent competition
+  # 4: exploitative competition
+  p=connectance
+  q=1-connectance
+    
+  sum_non_motif=q**6 + 6*p*q**5 + 3*p**2*q**4 # sum of isolation, uni-single, or bi-single
+  if(target_motif==1){
+    # target is chain motif
+    frac_target=(6*p**2*q**4)/(1-sum_non_motif)
+  }else if (target_motif==2){
+    #target is omnivory motif
+    frac_target=(6*p**3*q**3)/(1-sum_non_motif)
+  }else{
+    # target is apparent or exploitative competition
+    frac_target=(3*p**2*q**4)/(1-sum_non_motif)
+  }
+  num_motif=richness*(richness-1)*(richness-2)/6
+  
+  mean_frac=frac_target
+  std_frac=sqrt(frac_target*(1-frac_target)/num_motif)
+  return(data.frame(Richness=richness, 
+                    Mean=rep(mean_frac, length(richness)),
+                    SD=std_frac))
+  
+}
+```
+Saturation is better model in the null model as well. So the effect of richness on FW FCL is not FW specific.
+
+What about the relationship between richness and motifs?
+
+
+```{r Richness vs Motifs}
+Scatter=function(data, gname, richness=32, alpha=1){
+# quantile plot
+  #Q10=nlrq(Chain ~ a*(1-exp(-b*Richness))-c, data=na.oomit(data), tau=0.1,start=c(a=1, b=b_start, c=1))
+ # Q50=nlrq(Chain ~ a*(1-exp(-b*Richness))+c, data=na.omit(data), tau=0.5,start=c(a=1, b=b_start, c=1))
+  #Q90=nlrq(Chain ~ -a*(1-exp(-b*Richness))+c, data=np.omit(data), tau=0.9,start=c(a=1, b=b_start, c=0.1))
+  # Get distributions in the null model 
+  stat_null=Motif_frac_dist(1, seq(3, richness))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+  g1=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Chain))+scale_fill_continuous(low='gray90',high='#a6cee3')
+  g1=g1+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g1=g1+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+ # NEED TO MODIFY BELOW 
+  
+  
+  stat_null=Motif_frac_dist(2, seq(3, richness))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+  g2=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Omnivory))+scale_fill_continuous(low='gray90',high='#1f78b4')
+  g2=g2+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g2=g2+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20),
+    panel.grid = element_blank(),
+     legend.text=element_text(size=14),
+    legend.title = element_text(size=14))
+ 
+  stat_null=Motif_frac_dist(3, seq(3, richness))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+  g3=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Apparent))+scale_fill_continuous(low='gray90',high='#b2df8a')
+  g3=g3+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g3=g3+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+     legend.text=element_text(size=14),
+    legend.title = element_text(size=14))
+  
+  # Mean and SD of Apaprent and Exploittative motif are identicalS
+  g4=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Exploitative))+scale_fill_continuous(low='gray90',high='#33a02c')
+  g4=g4+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g4=g4+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20),
+    panel.grid = element_blank(),
+     legend.text=element_text(size=14),
+    legend.title = element_text(size=14))
+  g=g1+g2+g3+g4+plot_layout(nrow = 2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+  ggsave(paste0('ScatterCorr_', gname, '.png'), heigh=12, width=12)
+}
+```
+
+It seems that the pattern between richness and FCL (and richness and motifs) is univeresal.
+Let us check the cascade model
+
+
+```{r Cascade model}
+Cascade_generator=function(replicate=30, sample_num=5, richness=32, connectance=0.11){
+  FCL_null=c()
+  for(i in 1:replicate){
+    adj=matrix(rep(0, richness*richness), nrow=richness)
+    prob=2*connectance*richness/(richness-1)
+    for(j in 1:(richness-1)){
+        adj[j,(j+1):richness]=as.numeric(runif(richness-j)<prob)
+    }
+    g=graph_from_adjacency_matrix(adj, mode="directed")
+    write.csv(adj, paste0('Cascade_FW', i, ".csv"), row.names=FALSE)
+    
+    # calculate FCL and count motifs of the whole graph
+    if (is.null(FCL_null)){
+      FCL_null=data.frame(FCL_long=FCL(adj, 1), FCL_mean=FCLmean(adj), 
+                          FCL_short=FCL(adj, -1), Richness=richness)
+      motif=matrix(triad_census(g), nrow=1)
+      colnames(motif) = c("empty","monoA.single","bi.single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+      motif = subset(motif, select = -c(empty,monoA.single, bi.single) )
+      motif=motif/sum(motif)
+      FW_motif=subset(motif, select=c(s1, s2, s4, s5))
+      colnames(FW_motif)=c('Chain', "Omnivory", "Apparent", "Exploitative")
+      FCL_null=cbind(FCL_null, FW_motif)
+    }else{
+      data=c(FCL_long=FCL(adj, 1), FCL_mean=FCLmean(adj), 
+             FCL_short=FCL(adj, -1), Richness=richness)
+      motif=matrix(triad_census(g), nrow=1)
+      colnames(motif) = c("empty","monoA.single","bi.single",
+                    "s5","s4","s1","d4","d3","s2",
+                    "s3","d8","d2","d1","d5","d7","d6")
+      motif = subset(motif, select = -c(empty,monoA.single, bi.single) )
+      motif=motif/sum(motif)
+      FW_motif=subset(motif, select=c(s1, s2, s4, s5))
+      colnames(FW_motif)=c('Chain', "Omnivory", "Apparent", "Exploitative")
+      data=c(data, FW_motif)
+      FCL_null=rbind(FCL_null, data)
+    }
+    # calculate FCL and motifs in subgraph
+    for(j in 3:31){
+      for (k in 1:sample_num){
+        sub_g=induced_subgraph(g, vids = sample(1:richness, j, replace=FALSE))
+        adj=matrix(as_adjacency_matrix(sub_g), nrow=j)
+        data=c(FCL_long=FCL(adj, 1), FCL_mean=FCLmean(adj), 
+               FCL_short=FCL(adj, -1), Richness=j)
+        motif=matrix(triad_census(sub_g), nrow=1)
+        colnames(motif) = c("empty","monoA.single","bi.single",
+                      "s5","s4","s1","d4","d3","s2",
+                      "s3","d8","d2","d1","d5","d7","d6")
+        motif = subset(motif, select = -c(empty,monoA.single, bi.single) )
+        motif=motif/sum(motif)
+        FW_motif=subset(motif, select=c(s1, s2, s4, s5))
+        colnames(FW_motif)=c('Chain', "Omnivory", "Apparent", "Exploitative")
+        data=c(data, FW_motif)
+        FCL_null=rbind(FCL_null, data)
+      }
+    }
+  }
+  return(FCL_null)
+}
+df_cascade=Cascade_generator()
+write.csv(df_cascade, "FCL_Cascade_Model_summary.csv", row.names = FALSE)
+
+```
+
+
+```{r PLOT}
+r1=ggplot(df_cascade, aes(x=Richness, y=FCL_long))+geom_bin2d() +xlim(c(0, 32))+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+ylab('FCL long')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank()
+  )+annotate(geom="text", x=10, y=11, label=paste0('corr.=', round(cor.test(na.omit(df_cascade)$FCL_long, na.omit(df_cascade)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df_cascade)$FCL_long, na.omit(df_cascade)$Richness, method='spearman')$p.value, 3)), size=5)
+# Note df_cascade$FCL_long includes some NA because of cyclic food webs
+
+r2=ggplot(df_cascade, aes(x=Richness, y=FCL_mean))+geom_bin2d() +xlim(c(0, 32)) +scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+ylab('FCL mean')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank()
+  )+annotate(geom="text", x=10, y=6, label=paste0('corr.=', round(cor.test(df_cascade$FCL_mean, df_cascade$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_mean, df_cascade$Richness, method='spearman')$p.value, 3)), size=5)
+
+r3=ggplot(df_cascade, aes(x=Richness, y=FCL_short))+geom_bin2d()+xlim(c(0, 32))+scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+ylab('FCL short')+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank()
+  )+annotate(geom="text", x=10, y=5, label=paste0('corr.=', round(cor.test(df_cascade$FCL_short, df_cascade$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_short, df_cascade$Richness, method='spearman')$p.value, 3)), size=5)
+
+m1=ggplot(df_cascade, aes(x=Chain, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low = "gray90", high = '#a6cee3')+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank(),
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_cascade$FCL_long, df_cascade$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_long, df_cascade$Chain, method='spearman')$p.value, 3)), size=5)
+
+m2=ggplot(df_cascade, aes(x=Omnivory, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low="gray90", high='#1f78b4')+xlim(c(0, 1))+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid=element_blank(),
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_cascade$FCL_long, df_cascade$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_long, df_cascade$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m3=ggplot(df_cascade, aes(x=Apparent, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low='gray90',high='#b2df8a')+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank(),
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_cascade$FCL_long, df_cascade$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_long, df_cascade$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m4=ggplot(df_cascade, aes(x=Exploitative, y=FCL_long))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#33a02c')+ylab('FCL long')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=11, label=paste0('corr.=', round(cor.test(df_cascade$FCL_long, df_cascade$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_long, df_cascade$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+
+m5=ggplot(df_cascade, aes(x=Chain, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#a6cee3')+ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=6, label=paste0('corr.=', round(cor.test(df_cascade$FCL_mean, df_cascade$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_mean, df_cascade$Chain, method='spearman')$p.value, 3)), size=5)
+
+m6=ggplot(df_cascade, aes(x=Omnivory, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#1f78b4')+ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=6, label=paste0('corr.=', round(cor.test(df_cascade$FCL_mean, df_cascade$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_mean, df_cascade$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m7=ggplot(df_cascade, aes(x=Apparent, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#b2df8a')+ ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=6, label=paste0('corr.=', round(cor.test(df_cascade$FCL_mean, df_cascade$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_mean, df_cascade$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m8=ggplot(df_cascade, aes(x=Exploitative, y=FCL_mean))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#33a02c')+ylab('FCL mean')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=6, label=paste0('corr.=', round(cor.test(df_cascade$FCL_mean, df_cascade$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_mean, df_cascade$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+m9=ggplot(df_cascade, aes(x=Chain, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low='gray90',high='#a6cee3')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5, label=paste0('corr.=', round(cor.test(df_cascade$FCL_short, df_cascade$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_short, df_cascade$Chain, method='spearman')$p.value, 3)), size=5)
+
+m10=ggplot(df_cascade, aes(x=Omnivory, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low="gray90", high='#1f78b4')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5, label=paste0('corr.=', round(cor.test(df_cascade$FCL_short, df_cascade$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_short, df_cascade$Omnivory, method='spearman')$p.value, 3)), size=5)
+
+m11=ggplot(df_cascade, aes(x=Apparent, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#b2df8a')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5, label=paste0('corr.=', round(cor.test(df_cascade$FCL_short, df_cascade$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_short, df_cascade$Apparent, method='spearman')$p.value, 3)), size=5)
+
+m12=ggplot(df_cascade, aes(x=Exploitative, y=FCL_short))+geom_bin2d()+scale_fill_continuous(low='gray90', high='#33a02c')+ylab('FCL short')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none", panel.grid = element_blank()
+  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=5, label=paste0('corr.=', round(cor.test(df_cascade$FCL_short, df_cascade$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_cascade$FCL_short, df_cascade$Exploitative, method='spearman')$p.value, 3)), size=5)
+
+g=r1+r2+r3+m1+m5+m9+m2+m6+m10+m3+m7+m11+m4+m8+m12+plot_layout(nrow = 5, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+
+ggsave('./simulation_pdf/Cascade_correlations.pdf', width=12, height=12)
+```
+
+```{r AIC}
+df=na.omit(df_cascade)
+df$FCL=df$FCL_long
+print("FCL long")
+model_comp(df)
+df$FCL=df$FCL_mean
+print("FCL mean")
+model_comp(df, 0.5)
+df$FCL=df$FCL_short
+print("FCL short")
+model_comp(df)
+
+```
