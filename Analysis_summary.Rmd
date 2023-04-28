@@ -189,7 +189,296 @@ df_emp = subset(df_emp, select = -c(WEB_id, d1, d2,d3, d4, s3, d5, d6, d7,d8) )
 colnames(df_emp) = c('Ecosystems', 'FCL_long', 'FCL_mean', 'FCL_short', 'Richness', 
                  'Chain', 'Omnivory', 'Apparent', 'Exploitative')
 ```
-Next we plot FCL against the richness and motives 
+```{r Motif fract function}
+Motif_frac_dist=function(target_motif, richness, connectance=0.11){
+  # target motif
+  # 1: chain
+  # 2: omnivory
+  # 3: apparent competition
+  # 4: exploitative competition
+  p=connectance
+  q=1-connectance
+    
+  sum_non_motif=q**6 + 6*p*q**5 + 3*p**2*q**4 # sum of isolation, uni-single, or bi-single
+  if(target_motif==1){
+    # target is chain motif
+    frac_target=(6*p**2*q**4)/(1-sum_non_motif)
+  }else if (target_motif==2){
+    #target is omnivory motif
+    frac_target=(6*p**3*q**3)/(1-sum_non_motif)
+  }else{
+    # target is apparent or exploitative competition
+    frac_target=(3*p**2*q**4)/(1-sum_non_motif)
+  }
+  num_motif=richness*(richness-1)*(richness-2)/6*(1-sum_non_motif)
+  
+  mean_frac=frac_target
+  std_frac=sqrt(frac_target*(1-frac_target)/num_motif)
+  return(data.frame(Richness=richness, 
+                    Mean=rep(mean_frac, length(richness)),
+                    SD=std_frac))
+  
+}
+
+```
+
+```{r summary fig of FCL mean}
+# we plot only FCL vs best model, and richness vs chain plots
+df_emp$predict_mean=3.01*(1-exp(-0.14*df_emp$Richness))-2.82*df_emp$Chain^2+4.92*df_emp$Chain-1
+
+g1=ggplot(df_emp, aes(x=Richness, y=FCL_mean))+ylab('FCL mean')+xlab("Richness")+geom_point(color = "black", alpha=0.3, size=5)+
+   ggtitle('Empirical data')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+plot.title = element_text(size=28, hjust = 0.5),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*x))-2.82*mean(df_emp$Chain)^2+4.92*mean(df_emp$Chain)-1, color='green', linewidth=2)
+
+g2=ggplot(df_emp, aes(x=Chain, y=FCL_mean))+ylab('FCL mean')+xlab("Chain")+geom_point(color = "black", alpha=0.3, size=5)+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*mean(df_emp$Richness)))-2.82*x^2+4.92*x-1, color='green', linewidth=2)
+
+stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+  g3=ggplot(df_emp, aes(x=Richness))+geom_bin2d(aes(y=Chain))+scale_fill_continuous(low='gray90',high='#a6cee3')
+  g3=g3+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
+  g3=g3+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+
+df_mean$predict=3.78*(1-exp(-0.17*df_mean$richness))-replace(df_mean,is.na(df_mean),0)$chain^2+2.53*replace(df_mean,is.na(df_mean),0)$chain-1
+g4=ggplot(df_mean, aes(x=richness, y=FCL))+ylab('FCL mean')+xlab("Richness")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+ggtitle('Simulation')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+plot.title = element_text(size=28, hjust = 0.5),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 3.78*(1-exp(-0.17*x))-mean(df_mean$chain, na.rm=TRUE)^2+2.53*mean(df_mean$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+
+g5=ggplot(df_mean, aes(x=chain, y=FCL))+ylab('FCL mean')+xlab("Chain")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 3.78*(1-exp(-0.17*mean(df_mean$richness)))-x^2+2.53*x-1, color='green', linewidth=2)
+
+stat_null=Motif_frac_dist(1, seq(3, max(df_mean$richness)))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+g6=ggplot(df_mean, aes(x=richness))+geom_bin2d(aes(y=chain))+scale_fill_continuous(low='gray90',high='#a6cee3')+xlab("Richness")+ylab("Chain")
+  g6=g6+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
+  g6=g6+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+G=g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3, ncol=2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+
+ggsave('./FCL_mean_summary.pdf', width=12, height=12)
+```
+
+```{r FCL long}
+g1=ggplot(df_emp, aes(x=Richness, y=FCL_long))+ylab('FCL long')+xlab("Richness")+geom_point(color = "black", alpha=0.3, size=5)+
+   ggtitle('Empirical data')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+plot.title = element_text(size=28, hjust = 0.5),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*x))-7.3*mean(df_emp$Chain)^2+9.45*mean(df_emp$Chain)-1, color='green', linewidth=2)
+g2=ggplot(df_emp, aes(x=Chain, y=FCL_long))+ylab('FCL long')+xlab("Chain")+geom_point(color = "black", alpha=0.3, size=5)+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 3.94*(1-exp(-0.09*mean(df_emp$Richness)))-7.3*x^2+9.45*x-1, color='green', linewidth=2)
+
+stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+  g3=ggplot(df_emp, aes(x=Richness))+geom_bin2d(aes(y=Chain))+scale_fill_continuous(low='gray90',high='#a6cee3')
+  g3=g3+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
+  g3=g3+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+
+df_long$predict=6.76*(1-exp(-0.08*df_long$richness))-1.58*replace(df_long,is.na(df_long),0)$chain^2+3.13*replace(df_long,is.na(df_long),0)$chain-1 # replace na with 0
+g4=ggplot(df_long, aes(x=richness, y=FCL))+ylab('FCL long')+xlab("Richness")+ggtitle('Simulation')+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+plot.title = element_text(size=28, hjust = 0.5),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 6.76*(1-exp(-0.08*x))-1.58*mean(df_long$chain, na.rm=TRUE)^2+3.13*mean(df_long$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+
+g5=ggplot(df_long, aes(x=chain, y=FCL))+ylab('FCL long')+xlab("Chain")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 6.76*(1-exp(-0.08*mean(df_long$richness)))-1.58*x^2+3.13*x-1, color='green', linewidth=2)
+
+stat_null=Motif_frac_dist(1, seq(3, max(df_long$richness)))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+g6=ggplot(df_long, aes(x=richness))+geom_bin2d(aes(y=chain))+scale_fill_continuous(low='gray90',high='#a6cee3')+xlab("Richness")+ylab("Chain")
+  g6=g6+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
+  g6=g6+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+G=g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3, ncol=2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./FCL_long_summary.pdf', width=12, height=12)
+
+```
+
+
+```{r FCL short}
+df_emp$predict_short=2.85*(1-exp(-0.19*df_emp$Richness))+2.12*df_emp$Chain-1
+
+
+g1=ggplot(df_emp, aes(x=Richness, y=FCL_short))+ylab('FCL short')+xlab("Richness")+geom_point(color = "black", alpha=0.3, size=5)+
+   ggtitle('Empirical data')+theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+plot.title = element_text(size=28, hjust = 0.5),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 2.85*(1-exp(-0.19*x))+2.12*mean(df_emp$Chain)-1, color='green', linewidth=2)
+
+g2=ggplot(df_emp, aes(x=Chain, y=FCL_short))+ylab('FCL short')+xlab("Chain")+geom_point(color = "black", alpha=0.3, size=5)+
+ theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 2.85*(1-exp(-0.19*mean(df_emp$Richness)))+2.12*x-1, color='green', linewidth=2)
+
+stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+  g3=ggplot(df_emp, aes(x=Richness))+geom_bin2d(aes(y=Chain))+scale_fill_continuous(low='gray90',high='#a6cee3')
+  g3=g3+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
+  g3=g3+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+
+df_short$predict=2.95*(1-exp(-0.25*df_short$richness))-0.6*replace(df_short,is.na(df_short),0)$chain^2+2.02*replace(df_short,is.na(df_short),0)$chain-1
+g4=ggplot(df_short, aes(x=richness, y=FCL))+ylab('FCL short')+xlab("Richness")+ggtitle("Simulation")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+plot.title = element_text(size=28, hjust = 0.5),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 2.95*(1-exp(-0.25*x))-0.6*mean(df_short$chain, na.rm=TRUE)^2+2.02*mean(df_short$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+g5=ggplot(df_short, aes(x=chain, y=FCL))+ylab('FCL short')+xlab("Chain")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) 2.95*(1-exp(-0.25*mean(df_short$richness)))-0.6*x^2+2.02*x-1, color='green', linewidth=2)
+
+stat_null=Motif_frac_dist(1, seq(3, max(df_short$richness)))
+  stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
+  stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
+g6=ggplot(df_short, aes(x=richness))+geom_bin2d(aes(y=chain))+scale_fill_continuous(low='gray90',high='#a6cee3')+xlab("Richness")+ylab("Chain")
+  g6=g6+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
+  g6=g6+ theme_bw()+theme(
+    axis.text.x = element_text(size=14),
+      axis.title.x = element_text(size=20),
+       axis.text.y = element_text(size=14),
+      axis.title.y = element_text(size=20), 
+    panel.grid = element_blank(),
+    legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+    )
+G=g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3, ncol=2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('./FCL_short_summary.pdf', width=12, height=12)
+
+```
+
+Below we can see the plotsof richness or motifs against FCL
 
 ```{r Empirical richness and motives}
 r1=ggplot(df_emp, aes(x=Richness, y=FCL_long))+ylab('FCL long')+geom_point(color = "black", alpha=0.3, size=5)+
@@ -597,7 +886,7 @@ AIC_cal2(df_emp)
 The best models are saturating + quadriatic (in FCL long) or saturating + linear (in FCL short). However, in the FCL short, using saturating or quadratic functions in chain also seem fine. 
 Below, we show the coefficnet values in the best models and plot them.
 
-```{r Best models in mepirical data}
+```{r Best models in empirical data}
 # FCL_long
 summary(nls(FCL_long ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=na.omit(df_emp), 
               start=c(a=max(na.omit(df_emp)$FCL_long)/2, b=b_start, c=1, d=1.05), # d= 1 cause a problem of conversence
@@ -1217,10 +1506,10 @@ Heatmap_generator=function(df, gname1=FALSE, gname2=FALSE){
   print(summary(rq(FCL ~ disturbance, data = d_dist2, tau=0.5)))
   
   g1=ggplot(d_dist, aes(x=disturbance, y=FCL, color=factor(ecosystem), fill=factor(ecosystem)))+
-  stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
+  stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7)+stat_summary(geom="line", fun=median, linewidth=2)+
     #geom_violin(draw_quantiles = c(0.5))+
   ylab('FCL')+xlab("Disturbance")+
-  ylim(c(-1, max(df$FCL)))+
+  ylim(c(0, 4))+
   scale_x_continuous(breaks=seq(0.1,0.3,by=0.1))+
   theme_bw()+theme(
   axis.text.x = element_text(size=13),
@@ -1235,7 +1524,7 @@ legend.position = "none")+
   #geom_violin(draw_quantiles = c(0.5))+
      stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
      ylab('Richness')+xlab("Disturbance")+
-  ylim(c(0, 32))+
+  ylim(c(0, 25))+
   scale_x_continuous(breaks=seq(0.1,0.3,by=0.1))+
   theme_bw()+theme(
   axis.text.x = element_text(size=13),
@@ -1261,7 +1550,7 @@ legend.text = element_text(size=13))+
   stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
     #geom_violin(draw_quantiles = c(0.5))
   ylab('FCL')+xlab("Ecosystem size")+
-  ylim(c(-1, max(df$FCL)))+
+  ylim(c(0, 4))+
     scale_x_continuous(breaks=seq(1.5,2,by=0.25))+
   theme_bw()+theme(
   axis.text.x = element_text(size=13),
@@ -1276,7 +1565,7 @@ legend.position="none")+
      stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
      #geom_violin(draw_quantiles = c(0.5))+
      ylab('Richness')+xlab("Ecosystem size")+
-  ylim(c(0, 32))+
+  ylim(c(0, 25))+
       scale_x_continuous(breaks=seq(1.5,2,by=0.25))+
   theme_bw()+theme(
   axis.text.x = element_text(size=13),
@@ -1443,7 +1732,7 @@ for (i in 1:length(remove)){
 
 g1=ggplot(df_new, aes(x=Ecosystem, fill=Ecosystem)) + geom_bar()+ylab('Count')+
   theme_bw()+theme(
-axis.text.x = element_text(size=14),
+axis.text.x = element_text(size=14, angle=90),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
@@ -1455,7 +1744,7 @@ panel.grid = element_blank(),
 # calclulate richness and FCLs in each ecosystem
 g2=ggplot(data=df_new, aes(x=Ecosystem, y=Richness, color=Ecosystem)) +geom_jitter(position=position_jitter(0.2))+ylab('Richness')+
   theme_bw()+theme(
-axis.text.x = element_text(size=14),
+axis.text.x = element_text(size=14, angle=90),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
@@ -1469,7 +1758,7 @@ panel.grid = element_blank(),
 g3=ggplot(df_new, aes(x=Ecosystem, y=FCL_long, color=Ecosystem)) + ylab('FCL long' )+
   geom_count(aes(size=..prop.., group=Ecosystem))+
   theme_bw()+theme(
-axis.text.x = element_text(size=14),
+axis.text.x = element_text(size=14, angle=90),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
@@ -1481,7 +1770,7 @@ panel.grid = element_blank(),
 g4=ggplot(df_new, aes(x=Ecosystem, y=FCL_mean, color=Ecosystem)) + ylab('FCL mean')+
   geom_count(aes(size=..prop.., group=Ecosystem))+
   theme_bw()+theme(
-axis.text.x = element_text(size=14),
+axis.text.x = element_text(size=14, angle=90),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
@@ -1493,7 +1782,7 @@ panel.grid = element_blank(),
 g5=ggplot(df_new, aes(x=Ecosystem, y=FCL_short, color=Ecosystem)) + ylab('FCL short')+
   geom_count(aes(size=..prop.., group=Ecosystem))+
   theme_bw()+theme(
-axis.text.x = element_text(size=14),
+axis.text.x = element_text(size=14, angle=90),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
@@ -1503,241 +1792,8 @@ panel.grid = element_blank(),
 g1+g2+plot_spacer()+g3+g4+g5+plot_layout(nrow = 2, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 ggsave('./empirical_pdf/Empirical_SI.pdf', heigh=12, width=16)
 ```
-Next, we plot the cumulative probabilities over the two environmental factors
-```{r resource and disturbance}
-g1=ggplot(df_long, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g1=g1+xlab('Richness')+ylab('Density')  
-g1=g1+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Disturbance')
 
 
-g2=ggplot(df_mean, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g2=g2+xlab('Richness')+ylab('Density')  
-g2=g2+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Disturbance')
-
-
-g3=ggplot(df_short, aes(richness, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g3=g3+xlab('Richness')+ylab('Density')  
-g3=g3+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Disturbance')
-
-g4=ggplot(df_long, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g4=g4+xlab('Chain')+ylab('Density')  
-g4=g4+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Disturbance')
-
-
-g5=ggplot(df_mean, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g5=g5+xlab('Chain')+ylab('Density')  
-g5=g5+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Disturbance')
-
-g6=ggplot(df_short, aes(chain, linetype=factor(resource), color=factor(disturbance)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g6=g6+xlab('Chain')+ylab('Density')  
-g6=g6+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Disturbance')
-
-g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver1.pdf', heigh=12, width=12)
-
-```
-
-```{r resource and ecosystem}
-g1=ggplot(df_long, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g1=g1+xlab('Richness')+ylab('Density')  
-g1=g1+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Ecosystem')
-
-g2=ggplot(df_mean, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g2=g2+xlab('Richness')+ylab('Density')  
-g2=g2+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Ecosystem')
-
-
-g3=ggplot(df_short, aes(richness, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g3=g3+xlab('Richness')+ylab('Density')  
-g3=g3+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Ecosystem')
-
-g4=ggplot(df_long, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g4=g4+xlab('Chain')+ylab('Density')  
-g4=g4+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Ecosystem')
-
-
-g5=ggplot(df_mean, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g5=g5+xlab('Chain')+ylab('Density')  
-g5=g5+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Ecosystem')
-
-g6=ggplot(df_short, aes(chain, linetype=factor(resource), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g6=g6+xlab('Chain')+ylab('Density')  
-g6=g6+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Resource", color='Ecosystem')
-
-g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver2.pdf', heigh=12, width=12)
-
-```
-
-```{r disturbance and ecosystem}
-g1=ggplot(df_long, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g1=g1+xlab('Richness')+ylab('Density')  
-g1=g1+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Disturbance", color='Ecosystem')
-
-
-g2=ggplot(df_mean, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g2=g2+xlab('Richness')+ylab('Density')  
-g2=g2+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Disturbance", color='Ecosystem')
-
-
-g3=ggplot(df_short, aes(richness, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g3=g3+xlab('Richness')+ylab('Density')  
-g3=g3+xlim(c(0, 32))+ylim(c(0, 0.25))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Disturbance", color='Ecosystem')
-
-g4=ggplot(df_long, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g4=g4+xlab('Chain')+ylab('Density')  
-g4=g4+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
-  )+labs(linetype = "Disturbance", color='Ecosystem')
-
-
-g5=ggplot(df_mean, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g5=g5+xlab('Chain')+ylab('Density')  
-g5=g5+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Disturbance", color='Ecosystem')
-
-g6=ggplot(df_mean, aes(chain, linetype=factor(disturbance), color=factor(ecosystem)))+ stat_density(geom="line", linewidth=1, position='identity', adjust=2)
-g6=g6+xlab('Chain')+ylab('Density')  
-g6=g6+xlim(c(0, 1))+ylim(c(0, 7))+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-  legend.position="none",
-panel.grid = element_blank(),
-  )+labs(linetype = "Disturbance", color='Ecosystem')
-
-g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('./Simulations/simulation_pdf/Cumulative_Richness_Chain_ver3.pdf', heigh=12, width=12)
-
-```
 ```{r correlation heat map}
 library(tidyverse)
 library(igraph)
@@ -1822,7 +1878,7 @@ Scatter=function(data, gname, alpha=1){
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
   stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
   g1=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Chain))+scale_fill_continuous(low='gray90',high='#a6cee3')
-  g1=g1+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g1=g1+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
   g1=g1+ theme_bw()+theme(
     axis.text.x = element_text(size=14),
       axis.title.x = element_text(size=20),
@@ -1837,7 +1893,7 @@ Scatter=function(data, gname, alpha=1){
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
   stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
   g2=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Omnivory))+scale_fill_continuous(low='gray90',high='#1f78b4')
-  g2=g2+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g2=g2+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
   g2=g2+ theme_bw()+theme(
     axis.text.x = element_text(size=14),
       axis.title.x = element_text(size=20),
@@ -1851,7 +1907,7 @@ Scatter=function(data, gname, alpha=1){
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
   stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
   g3=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Apparent))+scale_fill_continuous(low='gray90',high='#b2df8a')
-  g3=g3+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g3=g3+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
   g3=g3+ theme_bw()+theme(
     axis.text.x = element_text(size=14),
       axis.title.x = element_text(size=20),
@@ -1865,7 +1921,7 @@ stat_null=Motif_frac_dist(3, seq(3, max(data$Richness)))
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
   stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
   g4=ggplot(data, aes(x=Richness))+geom_bin2d(aes(y=Exploitative))+scale_fill_continuous(low='gray90',high='#33a02c')
-  g4=g4+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')+ylim(0,1)
+  g4=g4+geom_line(data=stat_null, aes(x=Richness, y=Up), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Low), color='black')+geom_line(data=stat_null, aes(x=Richness, y=Mean), color='black', linetype='dashed')
   g4=g4+ theme_bw()+theme(
     axis.text.x = element_text(size=14),
       axis.title.x = element_text(size=20),
@@ -1880,7 +1936,7 @@ stat_null=Motif_frac_dist(3, seq(3, max(data$Richness)))
 ```
 
 
-
+Below we can compre the distirbutions of motifs over species richness, against the random graph.
 
 ```{r scatter for simulation}
 Scatter_sim=function(data, gname, alpha=1){
@@ -1953,74 +2009,172 @@ Scatter_sim(df_short, "FCLshort")
 
 ```
 
-```{r Mering two competitive motifs}
-#df_emp$Competition=df_emp$Apparent + df_emp$Exploitative
-#df_long$Competition=df_long$Apparent + df_long$Exploitative
-#df_mean$Competition=df_mean$Apparent + df_mean$Exploitative
-#df_short$Competition=df_short$Apparent + df_short$Exploitative
-
-ScatterV2=function(data, gname, alpha=1){
-  g1=ggplot(data, aes(x=Richness, y=Chain), alpha=alpha) + geom_point()+ylim(0,1)+theme(
-    axis.text.x = element_text(size=14),
-      axis.title.x = element_text(size=20),
-       axis.text.y = element_text(size=14),
-      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Chain, method='spearman')$p.value, 3)), size=6)
-  g2=ggplot(data, aes(x=Richness, y=Omnivory), alpha=alpha) + geom_point()+ylim(0,1)+theme(
-    axis.text.x = element_text(size=14),
-      axis.title.x = element_text(size=20),
-       axis.text.y = element_text(size=14),
-      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Omnivory, method='spearman')$p.value, 3)), size=6)
-  g3=ggplot(data, aes(x=Richness, y=Competition), alpha=alpha) + geom_point()+ylim(0,1)+theme(
-    axis.text.x = element_text(size=14),
-      axis.title.x = element_text(size=20),
-       axis.text.y = element_text(size=14),
-      axis.title.y = element_text(size=20))+annotate(geom="text", x=0.5*max(data$Richness), y=0.8, label=paste0('corr.=', round(cor.test(na.omit(data)$Richness, na.omit(data)$Competition, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(data)$Richness, na.omit(data)$Competition, method='spearman')$p.value, 3)), size=6)
-  g=g1+g2+g3+plot_layout(nrow = 3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-  ggsave(paste0('ScatterCorrV2_', gname, '.png'), heigh=12, width=8)
+Below, we analyze the difference in trophic positions within each motif
+```{Analyzing difference in trophic positions within motifs}
+library(ggplot2)
+library(igraph)
+library(tidyverse)
+library('rcompanion')
+library(patchwork)
+library(sjstats)
+Reconstract_FW =function(presence_array, full_FW, TL_def){
+  #--------------------------------------------
+  # This function generate realized food web and calculate FWL and food web motives
+  # presence_array: array of presence of each species. 1: presence, 0: absence
+  # full_FW NxN food web. The realized food web is a sub-matrix of this matrix
+  # TL_def: 0 Trophic level is given by the mean prey trophic levels
+  #     -1: TL is defined by the shortest-path length
+  #      1: TL is defined by the longest-path length  
+  #--------------------------------------------
+  n= sum (presence_array) # number of existing species
+  if(n<3){
+    #print("no motifS")
+    return(NULL)
+  }
+  else{
+    adj=matrix(0, n, n)
+    indexes=c() # indexes of present species
+    for (i in 1:length(presence_array)){
+      if(presence_array[i]==1){
+        indexes=c(indexes, i)
+      }
+    }
+    for(i in 1:n){
+      for (j in  1:n){
+        adj[i, j] = full_FW[indexes[i], indexes[j]]
+      }
+    }
+    # calculate TL
+    TL=rep(0, n) # trophic levels
+    B=c() # array of basal species
+    for (i in 1:n){
+      if(sum(adj[, i])==0)
+      {
+        # species i is a basal species
+        TL[i]=1
+        B=c(B, i)
+      }
+      else{
+        if (TL_def==0){
+          # TL=1 + mean of prey TL
+          
+          TL[i] = 1+(TL[1:(i-1)]%*%adj[1:(i-1), i])/sum(adj[1:(i-1), i])
+        }else if(TL_def==-1){
+          #TL= 1+ shortest-path length from basal species
+           graph=graph_from_adjacency_matrix(adj,mode='directed') # graph used in igraph
+           
+           TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+        } else{
+          #TL = 1+ longest-path length
+          graph=graph_from_adjacency_matrix(-adj,mode='directed', weight=TRUE)
+          TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to
+        }
+      }
+    }
+  
+    # pickup the motifs
+    zeros=matrix(rep(0, 9), nrow=3)
+    
+    # generate graph of food web motifs as template
+    chain=zeros
+    chain[1,2]=1
+    chain[2,3]=1
+    omni=chain
+    omni[1,3]=1
+    app=zeros
+    app[2,3]=1
+    app[1,3]=1
+    expl=zeros
+    expl[1,2]=1
+    expl[1,3]=1
+    chain=graph_from_adjacency_matrix(chain, mode='directed') # chain motif
+    omni=graph_from_adjacency_matrix(omni, mode='directed') # omnivore motif
+    app=graph_from_adjacency_matrix(app, mode='directed') # apparent competition
+    expl=graph_from_adjacency_matrix(expl, mode='directed') # exploitative competition
+    graph=graph_from_adjacency_matrix(adj,mode='directed') # food web
+    
+    chain_data=TP_among_template(chain, graph, TL, 'Chain')
+    omni_data=TP_among_template(omni, graph, TL, 'Omnivory')
+    app_data=TP_among_template(app, graph, TL, 'Apparent')
+    expl_data=TP_among_template(expl, graph, TL, 'Exploitative')
+    return(rbind(chain_data, omni_data, app_data, expl_data))
+  }
 }
-
-
-```
-
-
-```{r Quantile regression}
-library(quantreg)
-QuantileReg=function(data, gname){
-  #Richness vs Chain
-  g1=ggplot(data, aes(x=Richness, y=Chain)) + geom_point()+ylim(0,1)+theme(
-    axis.text.x = element_text(size=14),
-      axis.title.x = element_text(size=20),
-       axis.text.y = element_text(size=14),
-      axis.title.y = element_text(size=20))
-  # change abline below to non-parametric ana nonlinear+
-  g1=g1+geom_quantile(method = "rqss", quantiles = c(0.1, 0.9), colour="blue", linewidth = 2, alpha = 0.5)
-  g1=g1+geom_quantile(method = "rqss", quantiles = c(0.5), colour="green", linewidth = 2.5, alpha = 0.5)
-  
-  # Richness vs Omnivory
-  g2=ggplot(data, aes(x=Richness, y=Omnivory)) + geom_point()+ylim(0,1)+theme(
-    axis.text.x = element_text(size=14),
-      axis.title.x = element_text(size=20),
-       axis.text.y = element_text(size=14),
-      axis.title.y = element_text(size=20))
-  # change abline below to non-parametric ana nonlinear+
-  g2=g2+geom_quantile(method = "rqss", quantiles = c(0.1, 0.9), colour="blue", linewidth = 2, alpha = 0.5)
-  g2=g2+geom_quantile(method = "rqss", quantiles = c(0.5), colour="green", linewidth = 2.5, alpha = 0.5)
-  
-  # Richness vs Competition
-  g3=ggplot(data, aes(x=Richness, y=Competition)) + geom_point()+ylim(0,1)+theme(
-    axis.text.x = element_text(size=14),
-      axis.title.x = element_text(size=20),
-       axis.text.y = element_text(size=14),
-      axis.title.y = element_text(size=20))
-  # change abline below to non-parametric ana nonlinear+
-  g3=g3+geom_quantile(method = "rqss", quantiles = c(0.1, 0.9), colour="blue", linewidth = 2, alpha = 0.5)
-  g3=g3+geom_quantile(method = "rqss", quantiles = c(0.5), colour="green", linewidth = 2.5, alpha = 0.5)
-  g=g1+g2+g3+plot_layout(nrow = 3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-  ggsave(paste0('QuantileRegression_', gname, '.png'), heigh=12, width=8)
-  
+TP_among_template=function(template, foodweb, TP, label){
+  #we calculate the mean diff of TP in a template motif
+  iso=subgraph_isomorphisms(template, foodweb)
+  mean_TP=c()
+  if(length(iso)==0){
+    return(NULL)
+  }
+  else{
+    for(i in 1:length(iso)){
+      # species indeces
+      x=iso[[i]][1]
+      y=iso[[i]][2]
+      z=iso[[i]][3]
+      mean_TP=c(mean_TP, (abs(TP[x]-TP[y])+abs(TP[y]-TP[z])+abs(TP[z]-TP[x]))/3)
+    }
+    return(data.frame(Mean_diff=mean_TP, Motif=label))
+  }
 }
-QuantileReg(df_emp, 'Empirical')
-QuantileReg(df_long, 'SimulationLong')
-QuantileReg(df_mean, 'SimulationMean')
-QuantileReg(df_short, 'SimulationShort')
+Main= function(TL_def, num_FW=30){
+   ans=c()
+  #generate summary csv file to analyze simulation data
+  for (n in 1:num_FW){
+    print(n)
+    data=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'Presence_FoodWeb_',n,'.csv'))
+    presence_array=data[, 5:ncol(data)]
+    full_FW=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'FoodWeb_',n,'.csv'))
+   
+    for (i in 1:nrow(data)){
+      ans=rbind(ans, Reconstract_FW(presence_array[i, ], full_FW, TL_def))
+    }
+  }
+  return(ans)
+}
+#Diff_long=Main(TL_def=1)
+#write.csv(Diff_long, 'TP_difference_FCLlong.csv', sep=',', row.names = FALSE)
+#Diff_mean=Main(TL_def=0)
+#write.csv(Diff_mean, 'TP_difference_FCLmean.csv', sep=',', row.names = FALSE)
+#Diff_short=Main(TL_def=-1)
+#write.csv(Diff_short, 'TP_difference_FCLshort.csv', sep=',', row.names = FALSE)
+
+ViolinPlot=function(data, y_lab_presence=FALSE, legend_presence=FALSE){
+  g=ggplot(data, aes(x=Motif, y=Mean_diff,  fill=Motif))+geom_violin()+ 
+    stat_summary(fun=median, geom="point", size=2, color="black")
+   g=g+scale_x_discrete(limits=c("Chain", "Omnivory", "Apparent", "Exploitative"))+scale_fill_manual(values=c("Chain"='#a6cee3', "Omnivory"='#1f78b4', "Apparent"='#b2df8a', "Exploitative"='#33a02c'))
+  if(y_lab_presence==TRUE){
+     g= g+ylab('Mean difference in trophic positions')
+  }else{
+    g=g+ylab("")
+  }
+  g=g+xlab("")+theme_bw()+theme(
+axis.text.x = element_text(size=14, angle=90, vjust = 0.5, hjust=1),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+panel.grid = element_blank()
+  )
+  if(legend_presence==TRUE){
+    g=g+theme(legend.text=element_text(size=20), legend.title = element_text(size=0))
+  }
+  else{
+    g=g+theme(legend.position = 'none')
+  }
+ 
+  #print pairwise MannWhiteU
+  print(mwu(data=data,x=Mean_diff, grp=Motif))
+  # effect sizes given  by Cliff's delta
+  print( multiVDA(Mean_diff~Motif, data, statistic='CD'))
+  return(g)
+}
+Diff_long=read.csv("TP_difference_FCLlong.csv")
+Diff_mean=read.csv("TP_difference_FCLmean.csv")
+Diff_short=read.csv("TP_difference_FCLshort.csv")
+g1=ViolinPlot(Diff_long, TRUE, FALSE)
+g2=ViolinPlot(Diff_mean, FALSE, FALSE)
+g3=ViolinPlot(Diff_short, FALSE, FALSE)
+g=g1+g2+g3+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Diff_TrophicPosision.pdf', width=12, height=8)
 ```

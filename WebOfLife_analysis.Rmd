@@ -205,7 +205,7 @@ axis.text.x = element_text(size=14),
   legend.position="none",panel.grid = element_blank()
   )+annotate(geom="text", x=0.4, y=4, label=paste0('corr.=', round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df)$FCL_mean, na.omit(df)$Exploitative, method='spearman')$p.value, 3)), size=5)
 g=g1+g2+g3+g4+g5+plot_layout(nrow = 5)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-ggsave('./FCL_WebOfLife.pdf', width=12, height=12)
+#ggsave('./FCL_WebOfLife.pdf', width=12, height=12)
 ```
 Next, we compred the regression model with the new empirical data.
 As wehave about ten data here, we use the parameters from Cohen.
@@ -227,13 +227,13 @@ df$Prediction= 3.01*(1-exp(-0.14*df$Richness))-2.82*(df$Chain)^2+4.92*df$Chain-1
 #  )+stat_function(fun = function(x) 3.01*(1-exp(-0.14*mean(df$Richness)))-2.82*x^2+4.92*x-1, color='green')
 
 g3=ggplot(df, aes(x=FCL_mean, y=Prediction, size=4))+geom_point(color='black')+ylim(c(0, 5))+xlab('FCL mean')+ylab("Model prediction")+xlim(c(0, 5))+ theme_bw()+theme(
-axis.text.x = element_text(size=14),
+axis.text.x = element_text(size=16),
   axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
+   axis.text.y = element_text(size=16),
   axis.title.y = element_text(size=20),
   legend.position="none",panel.grid = element_blank()
-  )+stat_function(fun=function(x) x, color='blue')
+  )+stat_function(fun=function(x) x, color='blue', alpha=0.5)
 #g=g1+g2+g3+plot_layout(nrow = 5)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
-g3
-ggsave('./FCL_WebOfLife_fitting.pdf', width=12, height=12)
+ggsave('./FCL_WebOfLife_fitting.pdf', width=4, height=4)
+print(summary(lm(FCL_mean~Prediction+0, df)))
 ```
