@@ -1,0 +1,178 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+COmpare diff in trophic positions among species in each motif
+
+
+```{r}
+library(ggplot2)
+library(igraph)
+library(tidyverse)
+Reconstract_FW =function(presence_array, full_FW, TL_def){
+  #--------------------------------------------
+  # This function generate realized food web and calculate FWL and food web motives
+  # presence_array: array of presence of each species. 1: presence, 0: absence
+  # full_FW NxN food web. The realized food web is a sub-matrix of this matrix
+  # TL_def: 0 Trophic level is given by the mean prey trophic levels
+  #     -1: TL is defined by the shortest-path length
+  #      1: TL is defined by the longest-path length  
+  #--------------------------------------------
+  n= sum (presence_array) # number of existing species
+  if(n<3){
+    #print("no motifS")
+    return(NULL)
+  }
+  else{
+    adj=matrix(0, n, n)
+    indexes=c() # indexes of present species
+    for (i in 1:length(presence_array)){
+      if(presence_array[i]==1){
+        indexes=c(indexes, i)
+      }
+    }
+    for(i in 1:n){
+      for (j in  1:n){
+        adj[i, j] = full_FW[indexes[i], indexes[j]]
+      }
+    }
+    # calculate TL
+    TL=rep(0, n) # trophic levels
+    B=c() # array of basal species
+    for (i in 1:n){
+      if(sum(adj[, i])==0)
+      {
+        # species i is a basal species
+        TL[i]=1
+        B=c(B, i)
+      }
+      else{
+        if (TL_def==0){
+          # TL=1 + mean of prey TL
+          
+          TL[i] = 1+(TL[1:(i-1)]%*%adj[1:(i-1), i])/sum(adj[1:(i-1), i])
+        }else if(TL_def==-1){
+          #TL= 1+ shortest-path length from basal species
+           graph=graph_from_adjacency_matrix(adj,mode='directed') # graph used in igraph
+           
+           TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+        } else{
+          #TL = 1+ longest-path length
+          graph=graph_from_adjacency_matrix(-adj,mode='directed', weight=TRUE)
+          TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to
+        }
+      }
+    }
+  
+    # pickup the motifs
+    zeros=matrix(rep(0, 9), nrow=3)
+    
+    # generate graph of food web motifs as template
+    chain=zeros
+    chain[1,2]=1
+    chain[2,3]=1
+    omni=chain
+    omni[1,3]=1
+    app=zeros
+    app[2,3]=1
+    app[1,3]=1
+    expl=zeros
+    expl[1,2]=1
+    expl[1,3]=1
+    chain=graph_from_adjacency_matrix(chain, mode='directed') # chain motif
+    omni=graph_from_adjacency_matrix(omni, mode='directed') # omnivore motif
+    app=graph_from_adjacency_matrix(app, mode='directed') # apparent competition
+    expl=graph_from_adjacency_matrix(expl, mode='directed') # exploitative competition
+    graph=graph_from_adjacency_matrix(adj,mode='directed') # food web
+    
+    chain_data=TP_among_template(chain, graph, TL, 'Chain')
+    omni_data=TP_among_template(omni, graph, TL, 'Omnivory')
+    app_data=TP_among_template(app, graph, TL, 'Apparent')
+    expl_data=TP_among_template(expl, graph, TL, 'Exploitative')
+    return(rbind(chain_data, omni_data, app_data, expl_data))
+  }
+}
+TP_among_template=function(template, foodweb, TP, label){
+  #we calculate the mean diff of TP in a template motif
+  iso=subgraph_isomorphisms(template, foodweb)
+  mean_TP=c()
+  if(length(iso)==0){
+    return(NULL)
+  }
+  else{
+    for(i in 1:length(iso)){
+      # species indeces
+      x=iso[[i]][1]
+      y=iso[[i]][2]
+      z=iso[[i]][3]
+      mean_TP=c(mean_TP, (abs(TP[x]-TP[y])+abs(TP[y]-TP[z])+abs(TP[z]-TP[x]))/3)
+    }
+    return(data.frame(Mean_diff=mean_TP, Motif=label))
+  }
+}
+Main= function(TL_def, num_FW=30){
+   ans=c()
+  #generate summary csv file to analyze simulation data
+  for (n in 1:num_FW){
+    print(n)
+    data=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'Presence_FoodWeb_',n,'.csv'))
+    presence_array=data[, 5:ncol(data)]
+    full_FW=read.csv(paste0('./Species32/basal4/TLDef_',TL_def,'FoodWeb_',n,'.csv'))
+   
+    for (i in 1:nrow(data)){
+      ans=rbind(ans, Reconstract_FW(presence_array[i, ], full_FW, TL_def))
+    }
+  }
+  return(ans)
+}
+Diff_long=Main(TL_def=1)
+write.csv(Diff_long, 'TP_difference_FCLlong.csv', sep=',', row.names = FALSE)
+Diff_mean=Main(TL_def=0)
+write.csv(Diff_mean, 'TP_difference_FCLmean.csv', sep=',', row.names = FALSE)
+Diff_short=Main(TL_def=-1)
+write.csv(Diff_short, 'TP_difference_FCLshort.csv', sep=',', row.names = FALSE)
+```
+
+```{r Plot}
+library('rcompanion')
+library(ggplot2)
+library(patchwork)
+library(sjstats)
+ViolinPlot=function(data, y_lab_presence=FALSE, legend_presence=FALSE){
+  g=ggplot(data, aes(x=Motif, y=Mean_diff,  fill=Motif))+geom_violin()+ 
+    stat_summary(fun=median, geom="point", size=2, color="black")
+   g=g+scale_x_discrete(limits=c("Chain", "Omnivory", "Apparent", "Exploitative"))+scale_fill_manual(values=c("Chain"='#a6cee3', "Omnivory"='#1f78b4', "Apparent"='#b2df8a', "Exploitative"='#33a02c'))
+  if(y_lab_presence==TRUE){
+     g= g+ylab('Mean difference in trophic positions')
+  }else{
+    g=g+ylab("")
+  }
+  g=g+xlab("")+theme_bw()+theme(
+axis.text.x = element_text(size=14, angle=90, vjust = 0.5, hjust=1),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+panel.grid = element_blank()
+  )
+  if(legend_presence==TRUE){
+    g=g+theme(legend.text=element_text(size=20), legend.title = element_text(size=0))
+  }
+  else{
+    g=g+theme(legend.position = 'none')
+  }
+ 
+  #print pairwise MannWhiteU
+  print(mwu(data=data,x=Mean_diff, grp=Motif))
+  # effect sizes given  by Cliff's delta
+  print( multiVDA(Mean_diff~Motif, data, statistic='CD'))
+  return(g)
+}
+Diff_long=read.csv("TP_difference_FCLlong.csv")
+Diff_mean=read.csv("TP_difference_FCLmean.csv")
+Diff_short=read.csv("TP_difference_FCLshort.csv")
+g1=ViolinPlot(Diff_long, TRUE, FALSE)
+g2=ViolinPlot(Diff_mean, FALSE, FALSE)
+g3=ViolinPlot(Diff_short, FALSE, FALSE)
+g=g1+g2+g3+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('Diff_TrophicPosision.pdf', width=12, height=8)
+```
