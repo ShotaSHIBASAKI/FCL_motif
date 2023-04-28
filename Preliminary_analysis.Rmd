@@ -119,9 +119,9 @@ write.csv(data_short, './FCL_short_simulations_summary.csv', row.names = FALSE)
 
 Then, we will see whether enviornments affect FCL or not
 ```{r}
-df_long=read.csv("./Simulations/FCL_long_simulations_summary.csv") # simulation using FCL long
-df_mean=read.csv("./Simulations/FCL_mean_simulations_summary.csv") # simulation using FCL mean
-df_short=read.csv("./Simulations/FCL_short_simulations_summary.csv") # simulation using FCL short
+df_long=read.csv("FCL_long_simulations_summary.csv") # simulation using FCL long
+df_mean=read.csv("FCL_mean_simulations_summary.csv") # simulation using FCL mean
+df_short=read.csv("FCL_short_simulations_summary.csv") # simulation using FCL short
 
 p1=ggplot(df_long, aes(x=factor(resource), y=FCL))+geom_violin(color='#7570b3')+ylab('FCL long')+xlab("Resource")+
   theme_bw()+theme(
@@ -218,5 +218,81 @@ panel.grid = element_blank(),
 p1+p4+p7+p2+p5+p8+p3+p6+p9+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 ggsave('preliminary_FCL_simulation_environemnt.pdf', width=12, height=9)
 
+```
+
+
+```{r}
+p1=ggplot(df_long, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness')+xlab("Resource")+stat_summary(fun=median, geom="point", size=3)+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+  )+annotate(geom="text", x=1, y=30, label=paste0('corr.=', round(cor.test(df_long$richness, df_long$resource, method='spearman')$estimate, 3)), size=5)
+
+p4=ggplot(df_mean, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness')+xlab("Resource")+stat_summary(fun=median, geom="point", size=3)+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+  )+annotate(geom="text", x=1, y=30, label=paste0('corr.=', round(cor.test(df_mean$richness, df_mean$resource, method='spearman')$estimate, 3)), size=5)
+
+
+
+p7=ggplot(df_short, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness')+xlab("Resource")+stat_summary(fun=median, geom="point", size=3)+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+  )+annotate(geom="text", x=1, y=30, label=paste0('corr.=', round(cor.test(df_short$richness, df_short$resource, method='spearman')$estimate, 3)), size=5)
+
+
+p1+p4+p7+plot_layout(nrow = 3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+ggsave('preliminary_richnessL_simulation_environemnt.pdf', width=12, height=9)
+
+
+
+```
+
+```{r subset analysis}
+df_sub_mean=subset(df_mean, ecosystem==2.0 & disturbance==0.5)
+SubPlot=function(df_sub_mean){
+  cor.test(df_sub_mean$FCL, df_sub_mean$resource, method='spearman')
+  cor.test(df_sub_mean$richness, df_sub_mean$resource, method='spearman')
+  g1=ggplot(df_sub_mean, aes(x=factor(resource), y=FCL))+geom_violin(color='#7570b3')+ylab('FCL mean')+xlab("Resource")+stat_summary(fun=median, geom="point", size=3)+
+    theme_bw()+theme(
+  axis.text.x = element_text(size=14),
+    axis.title.x = element_text(size=20),
+     axis.text.y = element_text(size=14),
+    axis.title.y = element_text(size=20),
+    legend.position="none",
+  panel.grid = element_blank(),
+    )+annotate(geom="text", x=1, y=6, label=paste0('corr.=', round(cor.test(df_sub_mean$FCL, df_sub_mean$resource, method='spearman')$estimate, 3)), size=5)
+  
+  g2=ggplot(df_sub_mean, aes(x=factor(resource), y=richness))+geom_violin(color='#7570b3')+ylab('Richness')+xlab("Resource")+geom_boxplot(width=0.1)+
+    theme_bw()+theme(
+  axis.text.x = element_text(size=14),
+    axis.title.x = element_text(size=20),
+     axis.text.y = element_text(size=14),
+    axis.title.y = element_text(size=20),
+    legend.position="none",
+  panel.grid = element_blank(),
+    )+annotate(geom="text", x=1, y=30, label=paste0('corr.=', round(cor.test(df_sub_mean$richness, df_sub_mean$resource, method='spearman')$estimate, 3)), size=5)
+  g=g1+g2
+  return (g)
+}
+G1=SubPlot(df_sub_mean=subset(df_mean, ecosystem==0.5 & disturbance==0.9))
+  G2=SubPlot(df_sub_mean=subset(df_mean, ecosystem==2.0 & disturbance==0.5))
+G3=SubPlot(df_sub_mean=subset(df_mean, ecosystem==2.0 & disturbance==0.1))
+#+plot_layout(nrow = 3,, ncol=2)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+#ggsave('preliminary_resourceS.pdf', width=12, height=9)
 ```
 
