@@ -17,3 +17,7 @@ For Web of Lide data, see WebOfLife_analysis.Rmd.
 For Processing random graph or the cascade model data, see NullModel.Rmd.
 For simulations, see FCL_motif_simulations.Rmd.
 For preliminary data analysis (i.e., including resource availability analysis), see Preliminary_analysis.Rmd The summary data exist in ./preliminary_with_resource.
+
+# Difference in triphic positions wihtin motif
+In the supplementary file, we analyzed difference in trophic posisions of species with in a food web motif.
+See Motif_TP.Rmd for source codes, and data are available in TP_Motif_dat.zip.
