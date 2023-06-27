@@ -105,7 +105,7 @@ PPM= function(N, B, L, TL_def=0, T=1){
       xi= rbeta(1, shape1 = 1, shape2 = beta)
       ki=round(ni*xi) #this is the number of extra prey species
       A[s_j, i]=1 # species i eats species s_j
-      if (ki>=1){
+      if (L=1){
         # Function below update A and choose extra prey species
         A=assign_extra_prey(A, TL, s_j, T, ki, i)
       }
@@ -409,12 +409,12 @@ Reconstract_FW =function(presence_array, full_FW, TL_def){
 ```{r Main function for simulations}
 Main=function(replicate=7200, TL_def=0){
   # replicate: number of replicate to perform sensitivity analysis.
-  # default value is 500 (sampled paraemters) x 72 (dist x eco_size) / 5 (decrease compuational costs) = 7200
+  # default value is 500 (sampled paraemters) x 72 (dist x eco_size) / 5  (decrease compuational costs) = 7200
   set.seed(TL_def) # so that we can replicate the results
   # Define the list of parameters
   N=c(16, 24, 32, 48, 64)
   B=c(2, 4, 6, 8)
-  Connectance = c(0.9, 0.1, 0.11, 0.12, 0.13)
+  Connectance = c(0.09, 0.1, 0.11, 0.12, 0.13)
   T=c(0.1, 0.5, 1, 2, 10)
   Dist=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,0.8, 0.9)
   Eco=c(0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2)
@@ -426,24 +426,14 @@ Main=function(replicate=7200, TL_def=0){
   L_sample=round(Connectance_sample*(N_sample**2)) # need to convert number of links, not connectance itself
   T_sample=sample(T, replicate, replace=TRUE)
   Dist_sample=sample(Dist, replicate, replace=TRUE)
-  Eco_sample=sample(ECco, replicate, replace=TRUE)
-  richnes=c()
-  chain_motif=c()
-  omni_motif=c()
-  app_motif=c()
-  expl_motif=c()
-  FCL=c()
+  Eco_sample=sample(Eco, replicate, replace=TRUE)
+  Sims=c() # result of simulation
   for(n in 1:replicate){
     #adjacency m,atrix of food web
     A_f=FW_generator(N_sample[n], B_sample[n], L_sample[n], TL_def, T_sample[n])
     parm = ParmGeneraotr(N_sample[n], B_sample[n], resource, Dist_sample[n], Eco_sample[n])
-    sim=single_patch(A_f, parm, TL_def, replicate=1)
-    richness=c(richness, sim[1])
-    chain_motif=c(chain_motif, sim[2])
-    omni_motif=c(omni_motif, sim[3])
-    app_motif=c(app_motif, sim[4])
-    expl_motif=c(expl_motif, sim[5])
-    FCL=c(FCL, sim[6])
+    sim=single_patch(A_f, parm, TL_def)
+    Sims=rbind(Sims, sim)
   }
   result=data.frame(N_max=N_sample,
                     B_max=B_sample,
@@ -451,15 +441,23 @@ Main=function(replicate=7200, TL_def=0){
                     T=T_sample,
                     Disturbance=Dist_sample,
                     Eco_size=Eco_sample,
-                    Richness=richness,
-                    Chain=chain_motif,
-                    Omnivory=omni_motif,
-                    Apparent=app_motif,
-                    Exploitation=exp_motif,
-                    FCL=FCL
+                    Richness=Sims$richness,
+                    Chain=Sims$chain,
+                    Omnivory=Sims$omnivory,
+                    Apparent=Sims$apparent,
+                    Exploitation=Sims$exploitative,
+                    FCL=Sims$FCL
                     )
+  return(result)
 }
+result1=Main(replicate=7200, TL_def=0)
+write.csv(result1, "./Sensitivity_analysis/Summary_FCLmean.csv", row.names=FALSE)
 
+result2=Main(replicate=7200, TL_def=1)
+write.csv(result2, "./Sensitivity_analysis/Summary_FCLlong.csv", row.names=FALSE)
+
+result3=Main(replicate=7200, TL_def=-1)
+write.csv(result3, "./Sensitivity_analysis/Summary_FCLshort.csv", row.names=FALSE)
 
 ```
 
