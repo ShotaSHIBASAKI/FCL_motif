@@ -1,0 +1,470 @@
+---
+title: "Sensitivity analysis"
+output: html_notebook
+---
+
+This notebook shows the codes and results of sensitivity analysis.
+
+In the main text, we used specified values of N (maximum richness), l (expected number of trophic links),
+B (maximum number of basal species), T (control torphic link assigmnet). Here we shall see 
+whether these values affect the main result or not.
+
+Because the grid search is time-consuming, we sample these parameter values from the following list:
+N={16, 24, 32, 40, 48} (because of saturation)
+B={2, 4, 6, 8} (B=1 would be too sensitive to disturbance)
+l/N**2 = {0.9, 0.1, 0.11, 0.12, 0.13} (In Dunne et 2002, SD of connectance was 0.09)
+T={0.1, 0.5, 1, 2, 10} See Johnson et al 2014
+
+We also randomly sample ecosystem size and disturbance while fixing resource availabilty
+
+```{r Define functions}
+library(igraph)
+library(GillespieSSA)
+library(igraph)
+library(tidyverse)
+
+#Define N-species food web
+assign_extra_prey = function(A, TL, s_j,  T, ki, i){
+  # Assign extra preyspecies to species i
+  #------------------------------------
+  # A: adj matrix 
+  # TL trophic level vector
+  # s_j index of specie i's first prey
+  # T controls whether species can eat different TL species or not
+  # ki is the (maximum) number of etra prey species
+  # i predator's index
+  #------------------------------------
+  # we need to calculate prob of choosing additional prey
+  P=rep(0, i-1)
+  TL_first=TL[s_j] # trophic level of first chosen prey species
+  for (j in 1:(i-1)){
+    P[j]=exp(-abs(TL_first-TL[j])/T)
+  }
+  #P[s_j]=0 # if we set so, the number of links inflates
+  rand= runif(ki, 0, 1) # we need ki random value from 0 to 1
+  # note that we should not choose the first prey any more
+  for(j in 1:ki){
+    P=P/sum(P) #normalization
+    n=0.0
+    for(k in 1:(i-1)){
+      if (rand[j]<n+P[k]){
+        # species k is an extra prey species
+        A[k, i]=1
+        #P[k] = 0 # if we set so, the number of links inflates
+        break
+      }
+      else{
+        n=n+P[k]
+      }
+    }
+    if(sum(P)<=0){
+      # ki might be larger than i-1
+      break
+    }
+  } # additional prey species loop
+  return (A)
+}
+
+PPM= function(N, B, L, TL_def=0, T=1){
+  
+  # Implement PPM, but we have two modifications.
+  #1. We do not allow cannibalism
+  #2. We can alter the definition of species' tropic levels
+  #-------------------------------------------------------------------------------------
+  #N is the number of species
+  #B is the number of prey species
+  #L is the expected number of links
+  #TL_def: definition of trophic level. -1: shortest path from a basal species, 
+  #       0: mean trophic level of prey+1, 1: lonest path from a basal species
+  # In the origical model, trophic level (TL) is given by the mean trophic level of preys
+  #However, we could define TL using the shortest or longest path
+  
+  #T controls whether species can eat different TL species or not
+  #------------------------------------------------------------------------------------
+  if (B>=N){
+    print("Error: the number of basal species should be smaller than the total number of species")
+    return (1)
+  }
+  else if(B<=0){
+    print("We need at least one basal species")
+    return (1)
+  }
+  else{
+    # Step 1: assign Trophic level of basal species.
+    TL=c(rep(1, B), rep(-1, N-B))  # TL vector. For non basal species, we use -1 at first
+    A=matrix(0, N, N) # adj matrix
+    
+    # Step 2 assign non-basal species
+    for (i in (B+1):N){
+      s_j=sample.int(i-1, 1) # first chosen prey species
+      # assign certain number of additional prey species
+      # the number of additional prey follows the niche model
+      # see https://www.nature.com/articles/35004572
+      ni=i-1 # number of specie 
+      beta=(N^2 - B^2)/(2*L)-1
+      xi= rbeta(1, shape1 = 1, shape2 = beta)
+      ki=round(ni*xi) #this is the number of extra prey species
+      A[s_j, i]=1 # species i eats species s_j
+      if (ki>=1){
+        # Function below update A and choose extra prey species
+        A=assign_extra_prey(A, TL, s_j, T, ki, i)
+      }
+      
+      # define TL of species i
+      if (TL_def==0){
+        # we define FCL by mean prey's tropic level
+        # here we assume unbiased predation
+        TL[i] = 1+(TL[1:(i-1)]%*%A[1:(i-1), i])/sum(A[1:(i-1), i])
+      }
+      else if (TL_def==-1){
+        # TL of species i is defined by 1+the shortest path from a basal species
+        graph=graph_from_adjacency_matrix(A,mode='directed')
+        TL[i] = 1+min(distances(graph,to = i, mode='out')[1:B]) # we only care distances from basal species to species i
+      }
+      else if (TL_def==1){
+        #TL of species i is defined by 1+the longest path from a basal species
+        # Because igraph does not have an algorithm for the longest path
+        # we will use the shortest path with negative weights
+        graph=graph_from_adjacency_matrix(-A,mode='directed', weight=TRUE)
+        TL[i] =1- min(distances(graph,to = i, mode='out')[1:B]) # we only care distances from basal species to species i
+      }
+      else{
+        print("Error: TL_def=-1, 0, or 1. Pease check the source code")
+        return (1)
+      }
+      
+    }# end for loop for each non-basal species
+  }# end generating food web
+  return (list(A, TL))
+}
+
+CheckIsolation=function(A){
+  N=nrow(A)
+  for(i in 1:N){
+     if(sum(A[i,], A[, i])<=0){
+       # species i does not predate other species or is not eaten by other species
+       return(0) 
+     }
+  }
+  return(1)
+}
+
+FW_generator=function(N, B, L, TL_def=0, T=1){
+  # Main function to generate multiple food webs
+  # N number of species (int)
+  # B number of basal species in a food web. This should be a list
+  # L expected number of edges in a food web. 
+  # We recommend use L that gives connectance =0.11 
+  # following (https://pnas.org/doi/full/10.1073/pnas.192407699)
+  # rep number of replicates per value of B
+  # TL_def: definition of trophic level: -1 , 0 or 1. See PPM function above
+  # T parameter to control omnivore. See PPm function above
+  flag=0
+  while(flag==0){
+  ans=PPM(N, B, L, TL_def, T=1)
+  A=ans[1][[1]]
+  #TL=ans[2][[1]]
+      
+  # check whether the food web has no isolated species or not
+  if (CheckIsolation(A)==1){
+    # write.table(A, paste0("TLDef_", TL_def, "FoodWeb_", count, ".csv"),sep =",", row.names = FALSE)
+    flag=1
+    }
+  }
+  return(A)
+}
+
+#Dynamics
+colonization_extinction_single=function(A_f, B){
+  #-----------------------------------
+  # Return symbolic representations of colonization and extinction rates used in Gli. alg
+  # A_f: adjacency matrix of the food web
+  #  parm should contain B: number of basal species
+  # --------------- IMPORTANT -------------------
+  # It seems that GillespieSSA stops simulations when all x = 0. 
+  # For this reason,  we assume P=1 is absent while P=2 is present, 
+  # although we will use P=0 as absence and P=1 as presence in the manuscript
+  #-----------------------------------
+  # colonization and extinction rate in single patch
+  N=ncol(A_f) # number of species
+  F=rep(0, N) # colonization
+  G=rep(0, N) # extinction
+  P=paste0("P", seq(from = 1, to = N, by = 1)) # presence/absence of species in the patch
+  sum_basal=paste(P[1], -1) # symbolic representation of sum of basal species
+  if(B>1){
+    for (i in 2:B){
+      sum_basal = paste(sum_basal, '+', P[i], -1)
+    }
+  }
+  # calculate number of prey and predators per species , respectively
+  rho=rep(0, N) # number of prey
+  q=rep(0, N) # number of predator
+  for (i in 1:N){
+    for (k in 1:N){
+      # Count number of prey and predators
+      if (A_f[k,i]>0){
+        if(rho[i]==0){
+          rho[i] = paste0(P[k], -1)
+        }
+        else{
+          rho[i] = paste(rho[i], '+', P[k], -1) #If P=2=> add one (see above IMPORTANT)
+        }
+      }
+      if (A_f[i, k]>0){
+        if(q[i]==0){
+          q[i] = paste0(P[k], -1)
+        }
+        else{
+          q[i] = paste(q[i], '+', P[k], -1)
+        }
+      }
+    }
+    
+   # generate species colonization rate
+    if (i <= B){
+      # species i is a basal species
+      F[i] = paste0("(2-(", P[i], "))*a_",i, "*exp(-(", sum_basal, ")/R)")
+    }
+    else{
+      # species i is a non-basal species
+      F[i] = paste0("(2-(", P[i],"))*b_", i, "*(", rho[i], ")^(h1)/((", rho[i], ")^(h1)+K^(h1))")
+    }
+    # generate extinction rate
+    G[i] =paste0("(", P[i], "-1)*(c_", i, "*(", q[i], ")^(h2)/((", q[i], ")^(h2)+L^(h2)) + d_",i, "*M^(h3)/(M^(h3)+(", rho[i], ")^(h3)) +e_",i, ")")
+  }
+  return(c(F, G))
+}
+Presence=function(state, A_f, B){
+  # remove species that do not have any prey species
+  # state: presence of species 
+  # A_f adjacency matrix of food web
+  # B the number of basal species
+  N=length(state)
+  for (i in (B+1):N){
+    # we do not care about basal species i=1, ..., B
+    if (sum(A_f[, i]*state )< 1 ){
+      # species i has no prey species and should go extinct
+      state[i]=0
+    }
+  }
+  return (state)
+  
+}
+single_patch = function (A_f, parm, TL_def=0, tf=1000, SimName='single patch model'){
+ #------------- Analyze single patch model given the number of data----------
+  # A_f adjacency matrix of food web
+  # parm parameters used to run simulations
+  # parms include a(colonization of basal), b (colonization of non-basal),c (max extinction rate by predation),d (max extinction rate by lack of prey), R (resource availability in patch), 
+  # h1, h2, h3, K, L, M,
+  # TL_def: definition of TL
+  # replicate number of replicate we run
+  # tf time final
+  #--------------define some  values and vectors------------------------
+  N= ncol(A_f) # number of species in the system
+  B=sum(colSums(A_f)==0)  # number of basal species is the number of cols that sum is 0
+  init=rep(1, N) # initially no species exist. REMEBER, we use P=1 as absence and P=2 as presence in the codes
+  names(init)=paste0("P", seq(from = 1, to = N, by = 1)) # add names P_i (dropping j=1 from P_ij)
+  #We generate colonization and extinction functions from A_f
+  a=colonization_extinction_single(A_f, B) # Define propensity functions 
+  nu = matrix(c(diag(N), -diag(N)), nrow=N) # Define state-change matrix
+  #------------ Single run of dynamics --------------
+  # Currently simulation ends quickly. 
+  out <- ssa(x0 = init,a = a,nu = nu,parms = parm ,tf = tf,
+  method = ssa.d(),simName = SimName,verbose = FALSE,consoleInterval = 1)
+  # here we use slow direct method, but we can change the method once we confirm that approx methods are fine
+  # Then we want to calculate FCL
+  if (out$data[nrow(out$data),1] >tf){
+    # we now use 1 as presence and 0 as absence
+    state_f=out$data[nrow(out$data)-2, 2:ncol(out$data)]-1# time and presence/absence vector at the end
+  }
+  else{
+    state_f=out$data[nrow(out$data), 2:ncol(out$data)]-1
+  }
+  # Calculate species richness, fractions of motifs and FCL
+  return (Reconstract_FW(state_f, A_f, TL_def))
+}
+
+ParmGeneraotr = function(N, B, resource, disturbunce, eco_size){
+  #----------------------------------------
+  #Generate parameters needed to run simulations
+  # N: number of total species in a community
+  # B: number of basal species
+  # resource: resource availability that determines the number of coexisting basal species
+  # disturbances: strength of disturbances that drive species extinction
+  # eco_size: eco-system sizes which affect  the max colonization rates
+  #----------------------------------------
+  parm=c(rep(eco_size, N), # a 
+         rep(eco_size, N), # b
+         rep(0.3, N), # c
+         rep(0, B), # d_basal
+         rep(10, N-B), #d_non-basal
+         rep(disturbunce,N), # e
+         resource, # R
+         1, 2, 0.05, 1,1,1) # K-M, h1, h2, h3
+  A=c()
+  B=c()
+  C=c()
+  D=c()
+  E=c()
+  for (i in 1:N){
+    A=c(A, paste0("a_", i))
+    B=c(B, paste0("b_", i))
+    C=c(C, paste0("c_", i))
+    D=c(D, paste0("d_", i))
+    E=c(E, paste0("e_", i))
+  }
+  name_parm=c(A, B, C, D, E)
+  name_parm=c(name_parm, "R", "K", "L", "M", "h1", "h2", "h3")
+  names(parm)=name_parm
+  return(parm)
+}
+
+# Calculate FCL and motifs
+Reconstract_FW =function(presence_array, full_FW, TL_def){
+  #--------------------------------------------
+  # This function generate realized food web and calculate FWL and food web motives
+  # presence_array: array of presence of each species. 1: presence, 0: absence
+  # full_FW NxN food web. The realized food web is a sub-matrix of this matrix
+  # TL_def: 0 Trophic level is given by the mean prey trophic levels
+  #     -1: TL is defined by the shortest-path length
+  #      1: TL is defined by the longest-path length  
+  #--------------------------------------------
+  n= sum (presence_array) # number of existing species
+  if(n==0){
+    # no species exist
+    FCL=-1
+    motif=matrix(rep(NaN, 16), ncol=16)
+    data=data.frame(FCL, richness=0, motif)
+    colnames(data) = c('FCL', 'richness', "empty","monoA.single","bi.single",
+                    "exploitative","apparent","chain","d4","d3","omnivory",
+                    "s3","d8","d2","d1","d5","d7","d6")
+   data=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative) ) # ignore others as FW is acyclic 
+    # change order
+    data=data %>% select(order(colnames(data)))
+    data=dplyr::select(data, FCL,chain,omnivory, apparent, exploitative, everything())
+    return(data)
+  }
+  adj=matrix(0, n, n)
+  indexes=c() # indexes of present species
+  for (i in 1:length(presence_array)){
+    if(presence_array[i]==1){
+      indexes=c(indexes, i)
+    }
+  }
+  for(i in 1:n){
+    for (j in  1:n){
+      adj[i, j] = full_FW[indexes[i], indexes[j]]
+    }
+  }
+  # calculate FCL
+ 
+  TL=rep(0, n) # trophic levels
+  B=c() # array of basal species
+  for (i in 1:n){
+    if(sum(adj[, i])==0)
+    {
+      # species i is a basal species
+      TL[i]=1
+      B=c(B, i)
+    }
+    else{
+      # calculate TL
+      if (TL_def==0){
+        # TL=1 + mean of prey TL
+        
+        TL[i] = 1+(TL[1:(i-1)]%*%adj[1:(i-1), i])/sum(adj[1:(i-1), i])
+      }else if(TL_def==-1){
+        #TL= 1+ shortest-path length from basal species
+         graph=graph_from_adjacency_matrix(adj,mode='directed') # graph used in igraph
+         
+         TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+      } else{
+        #TL = 1+ longest-path length
+        graph=graph_from_adjacency_matrix(-adj,mode='directed', weight=TRUE)
+        TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to
+      }
+    }
+  }
+  FCL=-1+max(TL)
+  
+  # calculate fractions of motives
+  graph=graph_from_adjacency_matrix(adj,mode='directed')
+  motif=matrix(triad_census(graph), nrow=1)
+  #motif=motif/sum(motif) # convert into fractions
+ 
+  data=data.frame(FCL, richness=n, motif)
+  colnames(data) = c('FCL', 'richness', "empty","monoA.single","bi.single",
+                    "exploitative","apparent","chain","d4","d3","omnivory",
+                    "s3","d8","d2","d1","d5","d7","d6")
+  data=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative) ) # ignore others as FW is acyclic 
+  data[3:ncol(data)]=data[3:ncol(data)]/(sum(data[3:ncol(data)])) # fractions of motives
+  # change order
+  data=data %>% select(order(colnames(data)))
+  data=dplyr::select(data, richness, chain,omnivory, apparent, exploitative, FCL)
+  return(data)
+}
+
+```
+
+```{r Main function for simulations}
+Main=function(replicate=7200, TL_def=0){
+  # replicate: number of replicate to perform sensitivity analysis.
+  # default value is 500 (sampled paraemters) x 72 (dist x eco_size) / 5 (decrease compuational costs) = 7200
+  set.seed(TL_def) # so that we can replicate the results
+  # Define the list of parameters
+  N=c(16, 24, 32, 48, 64)
+  B=c(2, 4, 6, 8)
+  Connectance = c(0.9, 0.1, 0.11, 0.12, 0.13)
+  T=c(0.1, 0.5, 1, 2, 10)
+  Dist=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,0.8, 0.9)
+  Eco=c(0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2)
+  resource=4 # resource availability
+  # samples
+  N_sample=sample(N, replicate, replace=TRUE)
+  B_sample=sample(B, replicate, replace=TRUE)
+  Connectance_sample=sample(Connectance, replicate, replace=TRUE)
+  L_sample=round(Connectance_sample*(N_sample**2)) # need to convert number of links, not connectance itself
+  T_sample=sample(T, replicate, replace=TRUE)
+  Dist_sample=sample(Dist, replicate, replace=TRUE)
+  Eco_sample=sample(ECco, replicate, replace=TRUE)
+  richnes=c()
+  chain_motif=c()
+  omni_motif=c()
+  app_motif=c()
+  expl_motif=c()
+  FCL=c()
+  for(n in 1:replicate){
+    #adjacency m,atrix of food web
+    A_f=FW_generator(N_sample[n], B_sample[n], L_sample[n], TL_def, T_sample[n])
+    parm = ParmGeneraotr(N_sample[n], B_sample[n], resource, Dist_sample[n], Eco_sample[n])
+    sim=single_patch(A_f, parm, TL_def, replicate=1)
+    richness=c(richness, sim[1])
+    chain_motif=c(chain_motif, sim[2])
+    omni_motif=c(omni_motif, sim[3])
+    app_motif=c(app_motif, sim[4])
+    expl_motif=c(expl_motif, sim[5])
+    FCL=c(FCL, sim[6])
+  }
+  result=data.frame(N_max=N_sample,
+                    B_max=B_sample,
+                    Connectance=Connectance_sample,
+                    T=T_sample,
+                    Disturbance=Dist_sample,
+                    Eco_size=Eco_sample,
+                    Richness=richness,
+                    Chain=chain_motif,
+                    Omnivory=omni_motif,
+                    Apparent=app_motif,
+                    Exploitation=exp_motif,
+                    FCL=FCL
+                    )
+}
+
+
+```
+
+
+```{r Analyze the results}
+
+
+```
