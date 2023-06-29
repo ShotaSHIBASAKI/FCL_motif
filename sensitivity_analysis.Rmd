@@ -435,8 +435,8 @@ Main=function(replicate=7200, TL_def=0){
     sim=single_patch(A_f, parm, TL_def)
     Sims=rbind(Sims, sim)
   }
-  result=data.frame(N_max=N_sample,
-                    B_max=B_sample,
+  result=data.frame(N=N_sample,
+                    B=B_sample,
                     Connectance=Connectance_sample,
                     T=T_sample,
                     Disturbance=Dist_sample,
@@ -463,6 +463,101 @@ write.csv(result3, "./Sensitivity_analysis/Summary_FCLshort.csv", row.names=FALS
 
 
 ```{r Analyze the results}
+library(ggplot2)
+library(patchwork)
+library(reshape2)
+
+# Use this code to see the parms of fcl
+#model_mean=nls(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df, 
+#              start=c(a=max(df$FCL)/2, b=4, c=1, d=1), 
+#              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+#              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10))
+#summary(model_mean)
+
+Sensitivity_plot(df, fname_head){
+  # Plot the results of sensitivity analysis
+  # df data frame of sensitiviy analsis results
+  # fname_head header of fig name
+  
+  #g1 correlation heat map
+  df[is.na(df)]=0
+  cormat=round(cor(df, method="spearman"), 2)
+  melted_cormat = melt(cormat)
+  g1=ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
+    xlab('')+ylab("")+
+     geom_tile(color = "white")+
+     scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+       midpoint = 0, limit = c(-1,1), space = "Lab", 
+       name="Spearman\nCorr.") +
+      theme_minimal()+ 
+     theme(axis.text.x = element_text(angle = 90, vjust = 1, 
+        size = 12, hjust = 1), axis.text.y = element_text(size=12))+
+     coord_fixed()+geom_text(aes(Var2, Var1, label = value), color = "black", size = 4)
+  
+  # check model selection?
+  
+  # fitting to saturating + quadratic function
+  g3=ggplot(df, aes(x=Richness, y=FCL))+ylab('FCL')+geom_bin2d()+scale_fill_continuous(low='gray90', high='black')+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+  legend.position="none",
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )
+  
+  # heat map of richness or FCL over disturbance and ecosystem size
+  ecosystem=unique(df$Eco_size)
+  disturbance=unique(df$Distrubance)
+  data=expand.grid(Ecosystem=unique(df$Eco_size),
+                Disturbance=unique(df$Disturbance))
+  median_FCL=c()
+  median_richness=c()
+  for (i in 1:nrow(data)){
+    sub_df=subset(df, Eco_size==data$Ecosystem[i] & Disturbance==data$Disturbance[i])
+    median_FCL=c(median_FCL, median(sub_df$FCL))
+    median_richness=c(median_richness, median(sub_df$Richness))
+  }
+ 
+  data$FCL=median_FCL
+  data$Richness=median_richness
+  
+  g5=ggplot(data, aes(Ecosystem, Disturbance, fill= Richness), fig(8,8)) + 
+    xlab('Ecosystem size')+ylab("Disturbance")+
+    geom_tile(color = "black") +scale_y_continuous(breaks=seq(0.2,0.8,by=0.2))+
+    scale_fill_gradient(breaks = seq(0, 32, by=5), low="white", high="blue", name="Richness") +geom_text(aes(label = round(Richness, 1)))+
+     coord_fixed(ratio=2.5)+theme_bw()+
+    theme(
+     axis.text.x = element_text(size=14),
+     axis.title.x = element_text(size=20),
+     axis.text.y = element_text(size=14),
+     axis.title.y = element_text(size=20),
+     panel.grid = element_blank(),
+     legend.title = element_text(size=20),
+     legend.text = element_text(size=14))+
+    guides(fill = guide_colourbar(barwidth =1,
+                                barheight = 20))
+  
+  g6=ggplot(data, aes(Ecosystem, Disturbance, fill= FCL), fig(8,8)) + 
+    xlab('Ecosystem size')+ylab("Disturbance")+
+    geom_tile(color = "black") +scale_y_continuous(breaks=seq(0.2,0.8,by=0.2))+
+    scale_fill_gradient(low="white", high="blue", name="FCL")+
+     coord_fixed(ratio=2.5)+theme_bw()+
+    theme(
+     axis.text.x = element_text(size=14),
+     axis.title.x = element_text(size=20),
+     axis.text.y = element_text(size=14),
+     axis.title.y = element_text(size=20),
+     panel.grid = element_blank(),
+     legend.title = element_text(size=20),
+     legend.text = element_text(size=14))+
+    guides(fill = guide_colourbar(barwidth =1,
+                                barheight = 20))
+  G=g1=g5+g6
+}
 
 
 ```
