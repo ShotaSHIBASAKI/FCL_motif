@@ -467,21 +467,16 @@ library(ggplot2)
 library(patchwork)
 library(reshape2)
 
-# Use this code to see the parms of fcl
-#model_mean=nls(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df, 
-#              start=c(a=max(df$FCL)/2, b=4, c=1, d=1), 
-#              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
-#              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10))
-#summary(model_mean)
-
-Sensitivity_plot(df, fname_head){
+Sensitivity_plot=function(df, fname_head){
   # Plot the results of sensitivity analysis
   # df data frame of sensitiviy analsis results
   # fname_head header of fig name
   
   #g1 correlation heat map
-  df[is.na(df)]=0
-  cormat=round(cor(df, method="spearman"), 2)
+  # we omit rows with na (no motifs) because such canses have low species richnes and biases correlations
+  df_omit=na.omit(df)
+  cormat=round(cor(df_omit, method="spearman"), 1)
+  cormat[upper.tri(cormat)]=NA # we do not need the lower triangle
   melted_cormat = melt(cormat)
   g1=ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
     xlab('')+ylab("")+
@@ -492,22 +487,37 @@ Sensitivity_plot(df, fname_head){
       theme_minimal()+ 
      theme(axis.text.x = element_text(angle = 90, vjust = 1, 
         size = 12, hjust = 1), axis.text.y = element_text(size=12))+
-     coord_fixed()+geom_text(aes(Var2, Var1, label = value), color = "black", size = 4)
-  
-  # check model selection?
+     coord_fixed()+geom_text(aes(Var2, Var1, label = value), color = "black", size = 3)
+
   
   # fitting to saturating + quadratic function
-  g3=ggplot(df, aes(x=Richness, y=FCL))+ylab('FCL')+geom_bin2d()+scale_fill_continuous(low='gray90', high='black')+
+  model=nls(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=0.5, c=1, d=1), 
+              algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
+              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10))
+  coefs=coef(model)
+  print(summary(model))
+  g2=ggplot(df, aes(x=Richness, y=FCL))+ylab('FCL')+xlab('Richness')+geom_bin2d()+scale_fill_continuous(low='gray90', high='black')+
   theme_bw()+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
    axis.text.y = element_text(size=14),
   axis.title.y = element_text(size=20),
-  legend.position="none",
 panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )
+  )+stat_function(fun = function(x) coefs[1]*(1-exp(-coefs[2]*x))-coefs[3]*mean(df$Chain, na.rm=TRUE)^2+coefs[4]*mean(df$Chain, na.rm=TRUE)-1, color='green', linewidth=2)
+  g3=ggplot(df, aes(x=Chain, y=FCL))+ylab('FCL')+xlab('Chain')+geom_bin2d()+scale_fill_continuous(low='gray90', high='black')+
+  theme_bw()+theme(
+axis.text.x = element_text(size=14),
+  axis.title.x = element_text(size=20),
+   axis.text.y = element_text(size=14),
+  axis.title.y = element_text(size=20),
+panel.grid = element_blank(),
+ legend.text=element_text(size=14),
+    legend.title = element_text(size=14)
+  )+stat_function(fun = function(x) coefs[1]*(1-exp(-coefs[2]*mean(df$Richness, na.rm=TRUE)))-coefs[3]*x^2+coefs[4]*x-1, color='green', linewidth=2)
+  
   
   # heat map of richness or FCL over disturbance and ecosystem size
   ecosystem=unique(df$Eco_size)
@@ -525,7 +535,7 @@ panel.grid = element_blank(),
   data$FCL=median_FCL
   data$Richness=median_richness
   
-  g5=ggplot(data, aes(Ecosystem, Disturbance, fill= Richness), fig(8,8)) + 
+  g4=ggplot(data, aes(Ecosystem, Disturbance, fill= Richness), fig(8,8)) + 
     xlab('Ecosystem size')+ylab("Disturbance")+
     geom_tile(color = "black") +scale_y_continuous(breaks=seq(0.2,0.8,by=0.2))+
     scale_fill_gradient(breaks = seq(0, 32, by=5), low="white", high="blue", name="Richness") +geom_text(aes(label = round(Richness, 1)))+
@@ -539,9 +549,9 @@ panel.grid = element_blank(),
      legend.title = element_text(size=20),
      legend.text = element_text(size=14))+
     guides(fill = guide_colourbar(barwidth =1,
-                                barheight = 20))
+                                barheight = 10))
   
-  g6=ggplot(data, aes(Ecosystem, Disturbance, fill= FCL), fig(8,8)) + 
+  g5=ggplot(data, aes(Ecosystem, Disturbance, fill= FCL), fig(8,8)) + 
     xlab('Ecosystem size')+ylab("Disturbance")+
     geom_tile(color = "black") +scale_y_continuous(breaks=seq(0.2,0.8,by=0.2))+
     scale_fill_gradient(low="white", high="blue", name="FCL")+
@@ -555,9 +565,15 @@ panel.grid = element_blank(),
      legend.title = element_text(size=20),
      legend.text = element_text(size=14))+
     guides(fill = guide_colourbar(barwidth =1,
-                                barheight = 20))
-  G=g1=g5+g6
+                                barheight = 10))
+  G=g1+plot_spacer() +g2+g3+
+       g5+g4+plot_layout(nrow=3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+  ggsave(paste0('./Sensitivity_analysis/', fname_head, 'sensitivity.png'), width=12, height=12)
 }
 
 
+# run codes
+Sensitivity_plot(read.csv('./Sensitivity_analysis/Summary_FCLmean.csv'), 'FCLmean')
+Sensitivity_plot(read.csv('./Sensitivity_analysis/Summary_FCLlong.csv'), 'FCLlong')
+Sensitivity_plot(read.csv('./Sensitivity_analysis/Summary_FCLshort.csv'), 'FCLshort')
 ```
