@@ -266,28 +266,73 @@ stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
     legend.title = element_text(size=14)
     )
 
-df_mean$predict=3.78*(1-exp(-0.17*df_mean$richness))-replace(df_mean,is.na(df_mean),0)$chain^2+2.53*replace(df_mean,is.na(df_mean),0)$chain-1
-g4=ggplot(df_mean, aes(x=richness, y=FCL))+ylab('FCL mean')+xlab("Richness")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+ggtitle('Simulation')+theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-plot.title = element_text(size=28, hjust = 0.5),
-panel.grid = element_blank(),
- legend.text=element_text(size=14),
-    legend.title = element_text(size=14)
-  )+stat_function(fun = function(x) 3.78*(1-exp(-0.17*x))-mean(df_mean$chain, na.rm=TRUE)^2+2.53*mean(df_mean$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+  
+  #1. fit the mixed model
+  model=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_mean_fill, 
+               start=c(a=max(df_mean_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_mean_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+   fixed_coefs=model$coefficients$fixed #
+   random_coefs=model$coefficients$random$FW
+   #2. Show fixed effectd
+g4= ggplot(df_mean, aes(x = richness, y = FCL)) +
+  ylab('FCL mean') +
+  xlab("Richness") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  ggtitle('Simulation') +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))-fixed_coefs[3]*mean(df_mean$chain, na.rm=TRUE)^2+fixed_coefs[4]*mean(df_mean$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+# show random effects
+for (i in 1:nrow(random_coefs)) {
+  g4 = g4 +
+    geom_line(data = data.frame(richness = df_mean$richness,
+              FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df_mean$richness)) +
+                          (random_coefs[i, 3] - fixed_coefs[3]) * mean(df_mean$chain, na.rm = TRUE)^2 +
+                          (random_coefs[i, 4] + fixed_coefs[4]) * mean(df_mean$chain, na.rm = TRUE) - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
 
-g5=ggplot(df_mean, aes(x=chain, y=FCL))+ylab('FCL mean')+xlab("Chain")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
- legend.text=element_text(size=14),
-    legend.title = element_text(size=14)
-  )+stat_function(fun = function(x) 3.78*(1-exp(-0.17*mean(df_mean$richness)))-x^2+2.53*x-1, color='green', linewidth=2)
+
+
+g5= ggplot(df_mean, aes(x = chain, y = FCL)) +
+  ylab('FCL mean') +
+  xlab("Chain") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df_mean$richness, na.rm=TRUE)))-fixed_coefs[3]*x^2+fixed_coefs[4]*x-1, color='green', linewidth=2)
+
+for (i in 1:nrow(random_coefs)) {
+  g5 = g5 +
+    geom_line(data = data.frame(chain = df_mean$chain,
+  FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df_mean$richness, na.rm=TRUE))) +
+                          (random_coefs[i, 3] - fixed_coefs[3]) * df_mean$chain^2 +
+                          (random_coefs[i, 4] + fixed_coefs[4]) * df_mean$chain - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
 
 stat_null=Motif_frac_dist(1, seq(3, max(df_mean$richness)))
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
@@ -307,6 +352,7 @@ G=g1+g4+g2+g5+g3+g6+plot_layout(nrow = 3, ncol=2)+plot_annotation(tag_levels = "
 
 ggsave('./FCL_mean_summary.pdf', width=12, height=12)
 ```
+
 
 ```{r FCL long}
 g1=ggplot(df_emp, aes(x=Richness, y=FCL_long))+ylab('FCL long')+xlab("Richness")+geom_point(color = "black", alpha=0.3, size=5)+
@@ -347,30 +393,74 @@ stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
     legend.text=element_text(size=14),
     legend.title = element_text(size=14)
     )
+  
+  model=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_long_fill, 
+               start=c(a=max(df_mean_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_long_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+   fixed_coefs=model$coefficients$fixed #
+   random_coefs=model$coefficients$random$FW
+   
 
-df_long$predict=6.76*(1-exp(-0.08*df_long$richness))-1.58*replace(df_long,is.na(df_long),0)$chain^2+3.13*replace(df_long,is.na(df_long),0)$chain-1 # replace na with 0
-g4=ggplot(df_long, aes(x=richness, y=FCL))+ylab('FCL long')+xlab("Richness")+ggtitle('Simulation')+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-plot.title = element_text(size=28, hjust = 0.5),
-panel.grid = element_blank(),
- legend.text=element_text(size=14),
-    legend.title = element_text(size=14)
-  )+stat_function(fun = function(x) 6.76*(1-exp(-0.08*x))-1.58*mean(df_long$chain, na.rm=TRUE)^2+3.13*mean(df_long$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+g4= ggplot(df_long, aes(x = richness, y = FCL)) +
+  ylab('FCL long') +
+  xlab("Richness") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  ggtitle('Simulation') +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))-fixed_coefs[3]*mean(df_long$chain, na.rm=TRUE)^2+fixed_coefs[4]*mean(df_long$chain, na.rm=TRUE)-1, color='green', linewidth=2)
+# show random effects
+for (i in 1:nrow(random_coefs)) {
+  g4 = g4 +
+    geom_line(data = data.frame(richness = df_long$richness,
+              FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df_long$richness)) +
+                          (random_coefs[i, 3] - fixed_coefs[3]) * mean(df_long$chain, na.rm = TRUE)^2 +
+                          (random_coefs[i, 4] + fixed_coefs[4]) * mean(df_long$chain, na.rm = TRUE) - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
 
-g5=ggplot(df_long, aes(x=chain, y=FCL))+ylab('FCL long')+xlab("Chain")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
- legend.text=element_text(size=14),
-    legend.title = element_text(size=14)
-  )+stat_function(fun = function(x) 6.76*(1-exp(-0.08*mean(df_long$richness)))-1.58*x^2+3.13*x-1, color='green', linewidth=2)
+
+
+g5= ggplot(df_long, aes(x = chain, y = FCL)) +
+  ylab('FCL long') +
+  xlab("Chain") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df_long$richness, na.rm=TRUE)))-fixed_coefs[3]*x^2+fixed_coefs[4]*x-1, color='green', linewidth=2)
+
+for (i in 1:nrow(random_coefs)) {
+  g5 = g5 +
+    geom_line(data = data.frame(chain = df_long$chain,
+  FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df_long$richness, na.rm=TRUE))) +
+                          (random_coefs[i, 3] - fixed_coefs[3]) * df_long$chain^2 +
+                          (random_coefs[i, 4] + fixed_coefs[4]) * df_long$chain - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
+
 
 stat_null=Motif_frac_dist(1, seq(3, max(df_long$richness)))
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
@@ -436,29 +526,70 @@ stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
     legend.title = element_text(size=14)
     )
 
-df_short$predict=2.95*(1-exp(-0.25*df_short$richness))-0.6*replace(df_short,is.na(df_short),0)$chain^2+2.02*replace(df_short,is.na(df_short),0)$chain-1
-g4=ggplot(df_short, aes(x=richness, y=FCL))+ylab('FCL short')+xlab("Richness")+ggtitle("Simulation")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-plot.title = element_text(size=28, hjust = 0.5),
-panel.grid = element_blank(),
- legend.text=element_text(size=14),
-    legend.title = element_text(size=14)
-  )+stat_function(fun = function(x) 2.95*(1-exp(-0.25*x))-0.6*mean(df_short$chain, na.rm=TRUE)^2+2.02*mean(df_short$chain, na.rm=TRUE)-1, color='green', linewidth=2)
-g5=ggplot(df_short, aes(x=chain, y=FCL))+ylab('FCL short')+xlab("Chain")+geom_bin2d()+ scale_fill_continuous(low = "gray90", high = "black")+
-  theme_bw()+theme(
-axis.text.x = element_text(size=14),
-  axis.title.x = element_text(size=20),
-   axis.text.y = element_text(size=14),
-  axis.title.y = element_text(size=20),
-panel.grid = element_blank(),
- legend.text=element_text(size=14),
-    legend.title = element_text(size=14)
-  )+stat_function(fun = function(x) 2.95*(1-exp(-0.25*mean(df_short$richness)))-0.6*x^2+2.02*x-1, color='green', linewidth=2)
+model=nlme(FCL ~ a*(1-exp(-b*richness))+c*(1-exp(-d*chain))-1, data=df_short_fill, 
+              start=c(a=max(df_short_fill$FCL)/2, b=3.05, c=max(df_short_fill$FCL)/2, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01),
+              upper=c(a=max(df_short_fill$FCL)+1, b=10, c=max(df_short_fill$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+   fixed_coefs=model$coefficients$fixed #
+   random_coefs=model$coefficients$random$FW
+   
 
+g4= ggplot(df_short, aes(x = richness, y = FCL)) +
+  ylab('FCL short') +
+  xlab("Richness") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  ggtitle('Simulation') +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))+fixed_coefs[3]*(1-exp(-fixed_coefs[4]*mean(df_short$chain, na.rm=TRUE)))-1, color='green', linewidth=2)
+# show random effects
+for (i in 1:nrow(random_coefs)) {
+  g4 = g4 +
+    geom_line(data = data.frame(richness = df_short$richness,
+              FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df_short$richness)) +
+                          (random_coefs[i, 3] + fixed_coefs[3]) * (1 - exp((random_coefs[i, 4] - fixed_coefs[4]) * mean(df_short$chain, na.rm=TRUE))) - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
+
+
+
+g5= ggplot(df_short, aes(x = chain, y = FCL)) +
+  ylab('FCL short') +
+  xlab("Chain") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df_short$richness, rm.na=TRUE)))+fixed_coefs[3]*(1-exp(-fixed_coefs[4]*x))-1, color='green', linewidth=2)
+
+for (i in 1:nrow(random_coefs)) {
+  g5 = g5 +
+     geom_line(data = data.frame(chain = df_short$chain,
+              FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df_short$richness, rm.na=TRUE))) +
+          (random_coefs[i, 3] + fixed_coefs[3]) * (1 - exp((random_coefs[i, 4] - fixed_coefs[4]) * df_short$chain)) - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
 stat_null=Motif_frac_dist(1, seq(3, max(df_short$richness)))
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)
   stat_null$Low=pmax(stat_null$Mean-2*stat_null$SD, 0)
@@ -1020,7 +1151,11 @@ g4+g5+g6+g7+g8+g9+g1+g2+g3+plot_layout(nrow = 3)+plot_annotation(tag_levels = "A
 ggsave('./empirical_pdf/Modeling_empirical.pdf', width=16, height=8)
 ```
 
+Below, we also look for the best model. First, let us try simple versions. 
+Then, we consider the mixed model in the next chunk. In the, manuscript, we report the 
+mixed model's results
 ```{r best models in simulaiton}
+
 #b_start=1.5 # need to tune initial guess so that the algortihm works
 AIC_cal1= function(df, b_start=1.5){
     model1=nls(FCL ~ a*richness-1, data=df, start=c(a=1), algorithm='port', 
@@ -1084,6 +1219,133 @@ AIC_cal1(df_mean, 4)
 AIC_cal1(df_short, 1.5) # to avoid bad convergence
 
 ```
+Here is the mixed model versions
+```{r the best mixed models in simulation data}
+AIC_cal_nlme= function(df, b_start=1.5){
+  #In nlme, we need to fill NA with zeros
+  #We ignore warning meesages and force return
+  df[is.na(df)]=0
+    model1=nlme(FCL ~ a*richness-1, data=df, start=c(a=1.05), 
+               fixed = a ~ 1,
+               random = a  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01), upper=c(a=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE )) # linear func of richness
+  model2=nlme(FCL ~ a*(1-exp(-b*richness))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             fixed = a+b ~ 1,
+             random = a+b  ~ 1 | FW,
+             control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=max(df$FCL)+1, b =10),
+                       returnObject=TRUE,msWarnNoConv=FALSE)) # saturating func of richness
+  model3=nlme(FCL ~ -a*richness^2+b*richness-1, data=df, start=c(a=1, b=1.05), 
+              fixed = a +b~ 1,
+              random = a+b  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=10, b=10),
+              returnObject=TRUE,msWarnNoConv=FALSE)) # quadratic func of richness
+  model4=nlme(FCL ~ a*chain-1, data=df, start=c(a=1),  
+              fixed = a ~ 1,
+              random = a  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01), upper=(a=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE)) # linear func of chain
+  model5=nlme(FCL ~ a*(1-exp(-b*chain))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+              fixed = a+b ~ 1,
+              random = a+b  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=max(df$FCL)+1, b=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE)) # saturating func of chain
+  model6=nlme(FCL ~ -a*chain^2+b*chain-1, data=df, start=c(a=1, b=1), 
+              fixed = a+b ~ 1,
+              random = a+b  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=10, b=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE)) # quadratic func of chain
+ 
+  #combination of chain and richness
+  model14=nlme(FCL ~ a*richness+b*chain-1, data=df, start=c(a=1, b=1), 
+                      fixed = a + b ~ 1,
+                     random = a + b ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower = c(a=0.01, b=0.01), upper=c(a=10, b=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE))
+  model15=nlme(FCL ~ a*richness+b*(1-exp(-c*chain))-1, data=df, start=c(a=1, b=max(df$FCL)/2, c=b_start), 
+               fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01), 
+                        upper=c(a=10, b=max(df$FCL)+1, c=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE))
+  model16=nlme(FCL ~ a*richness-b*chain^2+c*chain-1, data=df, start=c(a=1, b=1, c=1), 
+               fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                       lower=c(a=0.01, b=0.01, c=0.01), 
+                       upper=c(a=10, b=10, c=10),
+                       returnObject=TRUE,msWarnNoConv=FALSE))
+  model24=nlme(FCL ~ a*(1-exp(-b*richness))+c*chain-1, data=df, start=c(a=max(df$FCL)/2, b=b_start, c=1),
+               fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01), 
+                        upper=c(a=max(df$FCL)+1, b=10, c=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE))
+  model25=nlme(FCL ~ a*(1-exp(-b*richness))+c*(1-exp(-d*chain))-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=max(df$FCL)/2, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01),
+              upper=c(a=max(df$FCL)+1, b=10, c=max(df$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model26=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=1, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model34=nlme(FCL ~ -a*richness^2+b*richness+c*chain-1, data=df, start=c(a=1, b=3, c=1),
+              fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01),
+              upper=c(a=10, b=10, c=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model35=nlme(FCL ~ -a*richness^2+b*richness+c*(1-exp(-d*chain))-1, data=df, 
+              start=c(a=1, b=1, c=max(df$FCL)/2, d=b_start), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+              lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+              upper=c(a=10, b=10, c=max(df$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model36=nlme(FCL ~ -a*richness^2+b*richness-c*chain^2+d*chain-1, data=df, 
+              start=c(a=1, b=1, c=1, d=1),
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b =0.01, c=0.01, d=0.01), 
+              upper=c(a=10, b=10, c=10, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  
+  AICs=c(AIC(model1), AIC(model2), AIC(model3), AIC(model4), AIC(model5), AIC(model6),
+         AIC(model14),AIC(model15), AIC(model16), AIC(model24), AIC(model25), AIC(model26),
+         AIC(model34),AIC(model35), AIC(model36))
+   minAIC=min(AICs)
+  deltaAIC=AICs-minAIC
+  print(deltaAIC)
+  print(minAIC)
+}
+
+#FCL long
+AIC_cal_nlme(df_long, 2) 
+#FCL mean
+AIC_cal_nlme(df_mean, 1)
+#FCL short
+AIC_cal_nlme(df_short, 3.05) # to avoid bad convergence
+```
 
 ```{r the best models in simulation data}
 model_long=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_long, 
@@ -1103,10 +1365,47 @@ model_short=nls(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_short,
               algorithm='port', lower=c(a=0, b=0, c=0, d=0), 
               upper=c(a=max(df_short$FCL)+1, b=10, c=10, d=10))
 summary(model_short)
-
 ```
 
-```{r best models for simulation data}
+Same for mixed model
+```{r the best models in simulation data with mixed effects}
+df_long_fill=df_long
+df_long_fill[is.na(df_long_fill)]=0
+model_long=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_long_fill, 
+              start=c(a=max(df_long_fill$FCL)/2, b=2, c=1, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+              upper=c(a=max(df_long_fill$FCL)+1, b=10, c=10, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+summary(model_long)
+df_mean_fill=df_mean
+df_mean_fill[is.na(df_mean_fill)]=0
+model_mean=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_mean_fill, 
+              start=c(a=max(df_mean_fill$FCL)/2, b=1, c=1, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+              upper=c(a=max(df_mean_fill$FCL)+1, b=10, c=10, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+summary(model_mean)
+df_short_fill=df_short
+df_short_fill[is.na(df_short_fill)]=0
+model_short=nlme(FCL ~ a*(1-exp(-b*richness))+c*(1-exp(-d*chain))-1, data=df_short_fill, 
+              start=c(a=max(df_short_fill$FCL)/2, b=3.05, c=max(df_short_fill$FCL)/2, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01),
+              upper=c(a=max(df_short_fill$FCL)+1, b=10, c=max(df$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+summary(model_short)
+```
+
+
+```{r Plot best models for simulation data}
 # First we fill na with 0s (corresponding richness < 2)
 
 df_long$predict=6.76*(1-exp(-0.08*df_long$richness))-1.58*replace(df_long,is.na(df_long),0)$chain^2+3.13*replace(df_long,is.na(df_long),0)$chain-1 # replace na with 0
@@ -1447,8 +1746,210 @@ g2=g2+xlim(c(0, 32))+ylim(c(0, 0.25))+theme(
 ```{r heatmap of FCL and compare how richness change over dist and eco size}
 library(plotrix)
 library(quantreg)
+library(lqmm)
+#IT iS WEIRD THAT THIS FUNCTION CHANGES THE PLOT FROM WHAT WE GENERATE SEPARATELY?????
 Heatmap_generator=function(df, gname1=FALSE, gname2=FALSE){
-  # data processing
+  
+    #quantile regression
+ 
+  # plot some distributions of  FCL over emvironments
+  d_sub=subset(df,disturbance <0.4)
+  
+  d_dist1=subset(d_sub, ecosystem==0.5)
+  d_dist2=subset(d_sub,  ecosystem==2)
+  d_dist=rbind(d_dist1, d_dist2)
+  
+  
+  test11=lqmm(FCL ~ disturbance, random= ~ disturbance+1 , group=FW, tau = c(0.25, 0.5,0.75), data=d_dist1, control= lqmmControl(method = "df"))
+fixed_coef11=coef(test11)
+random_coef11=ranef(test11)$`0.50`# we use only medians for random  effect
+
+test12=lqmm(FCL ~ disturbance, random= ~ disturbance+1 , group=FW, tau = c(0.25, 0.5, 0.75), data=d_dist2, control= lqmmControl(method = "df"))
+fixed_coef12=coef(test12)
+random_coef12=ranef(test12)$`0.50` # we use only medians for random  effect
+print('FCL over disturbance')
+#print(summary(test11))
+#print(summary(test12))
+  # We can compare the slope 
+  # we use log(slope) to Wilcoxon signed test because the null hypothesis is the ratio of slopes is 1
+  a1=fixed_coef11[2,2]+random_coef11[, 2]
+  a2=fixed_coef12[2,2]+random_coef12[, 2]
+  print(wilcox.test(log(-a1), log(-a2),paired=TRUE, alternative='greater', conf.int = TRUE)) # Note that a1 and a2 are negative and that alternative is greater, not less
+# then we need to plot them usin gggplot
+g1=ggplot(d_dist, aes(x=disturbance, y=FCL, color=factor(ecosystem), fill=factor(ecosystem)))+
+   scale_color_manual(values=c("#E69F00", "#56B4E9"))+
+   ylim(c(0, 4))+theme_bw() +ylab('FCL')+xlab("Disturbance")+ scale_x_continuous(breaks=seq(0.1,0.3,by=0.1))+
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  )+geom_ribbon(aes(x = disturbance,
+                    ymin = fixed_coef11[2,1]*disturbance+fixed_coef11[1,1],
+                    ymax = fixed_coef11[2,3]*disturbance+fixed_coef11[1,3]), alpha=0.1, color='#E69F00', fill='#E69F00')+
+   geom_ribbon(aes(x = disturbance,
+                  ymin = fixed_coef12[2,1]*disturbance+fixed_coef12[1,1],
+                  ymax = fixed_coef12[2,3]*disturbance+fixed_coef12[1,3]), alpha=0.1, color='#56B4E9', fill='#56B4E9')
+
+for(i in 1:nrow(random_coef1)){
+  #plot random effects
+  g1=g1+geom_line(data = data.frame(disturbance = d_dist1$disturbance,
+              FCL=(random_coef11[i, 2]+fixed_coef11[2,2])*d_dist1$disturbance+(random_coef11[i, 1]+fixed_coef11[1,2]),
+              ecosystem=0.5), linewidth=0.5, linetype=2, color='#E69F00')+
+    geom_line(data = data.frame(disturbance = d_dist2$disturbance,
+              FCL=(random_coef12[i, 2]+fixed_coef12[2,2])*d_dist2$disturbance+(random_coef12[i, 1]+fixed_coef12[1,2]),
+              ecosystem=2), linewidth=0.5, linetype=2)
+}
+    g1=g1+geom_line(aes(x=disturbance, y=fixed_coef11[2,2]*disturbance+fixed_coef11[1,2]), linewidth=2, color='#E69F00')+
+    geom_line(aes(x=disturbance, y=fixed_coef12[2,2]*disturbance+fixed_coef12[1,2]), linewidth=2)
+  
+  
+test21=lqmm(richness ~ disturbance, random= ~ disturbance+1 , group=FW, tau = c(0.25, 0.5,0.75), data=d_dist1, control= lqmmControl(method = "df"))
+fixed_coef21=coef(test21)
+random_coef21=ranef(test21)$`0.50`# we use only medians for random  effect
+
+test22=lqmm(richness ~ disturbance, random= ~ disturbance+1 , group=FW, tau = c(0.25, 0.5, 0.75), data=d_dist2, control= lqmmControl(method = "df"))
+fixed_coef22=coef(test22)
+random_coef22=ranef(test22)$`0.50` # we use only medians for random  effect
+print('Richness over disturbance')
+#print(summary(test21))
+#print(summary(test22))
+  
+g2=ggplot(d_dist, aes(x=disturbance, y=richness, color=factor(ecosystem), fill=factor(ecosystem)))+
+   scale_color_manual(values=c("#E69F00", "#56B4E9"))+
+   ylim(c(0, 30))+theme_bw() +ylab('Richness')+xlab("Disturbance")+ scale_x_continuous(breaks=seq(0.1,0.3,by=0.1))+
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+geom_ribbon(aes(x = disturbance,
+                    ymin = fixed_coef21[2,1]*disturbance+fixed_coef21[1,1],
+                    ymax = fixed_coef21[2,3]*disturbance+fixed_coef21[1,3]), alpha=0.1, color='#E69F00', fill='#E69F00')+
+   geom_ribbon(aes(x = disturbance,
+                  ymin = fixed_coef22[2,1]*disturbance+fixed_coef22[1,1],
+                  ymax = fixed_coef22[2,3]*disturbance+fixed_coef22[1,3]), alpha=0.1, color='#56B4E9', fill='#56B4E9')
+
+for(i in 1:nrow(random_coef1)){
+  #plot random effects
+  g2=g2+geom_line(data = data.frame(disturbance = d_dist1$disturbance,
+              richness=(random_coef21[i, 2]+fixed_coef21[2,2])*d_dist1$disturbance+(random_coef21[i, 1]+fixed_coef21[1,2]),
+              ecosystem=0.5), linewidth=0.5, linetype=2, color='#E69F00')+
+    geom_line(data = data.frame(disturbance = d_dist2$disturbance,
+              richness=(random_coef22[i, 2]+fixed_coef22[2,2])*d_dist2$disturbance+(random_coef22[i, 1]+fixed_coef22[1,2]),
+              ecosystem=2), linewidth=0.5, linetype=2)
+}
+    g2=g2+geom_line(aes(x=disturbance, y=fixed_coef21[2,2]*disturbance+fixed_coef21[1,2]), linewidth=2, color='#E69F00')+
+    geom_line(aes(x=disturbance, y=fixed_coef22[2,2]*disturbance+fixed_coef22[1,2]), linewidth=2)+
+   guides(color=guide_legend(title="Ecosystem size"), )
+  
+
+  
+  
+  d_sub=subset(df,ecosystem >1.25)
+  
+  d_eco1=subset(d_sub, disturbance==0.1)
+  d_eco2=subset(d_sub,  disturbance==0.8)
+
+  
+  test31=lqmm(FCL ~ ecosystem, random= ~ ecosystem+1 , group=FW, tau = c(0.25, 0.5,0.75), data=d_eco1, control= lqmmControl(method = "df"))
+fixed_coef31=coef(test31)
+random_coef31=ranef(test31)$`0.50`# we use only medians for random  effect
+
+test32=lqmm(FCL ~ ecosystem, random= ~ ecosystem+1 , group=FW, tau = c(0.25, 0.5, 0.75), data=d_eco2, control= lqmmControl(method = "df"))
+fixed_coef32=coef(test32)
+random_coef32=ranef(test32)$`0.50` # we use only medians for random  effect
+print('FCL over ecosystem size')
+#print(summary(test31))
+#print(summary(test32))
+  a1=fixed_coef31[2,2]+random_coef31[, 2]
+  a2=fixed_coef32[2,2]+random_coef32[, 2]
+  print(wilcox.test(log(a2), log(a1),paired=TRUE, alternative='greater'))  
+  
+# then we need to plot them usin gggplot
+g3=ggplot(d_eco, aes(x=ecosystem, y=FCL, color=factor(disturbance), fill=factor(disturbance)))+
+   scale_color_manual(values=c("#E69F00", "#56B4E9"))+
+   ylim(c(0, 4))+theme_bw() +ylab('FCL')+xlab("Ecosystem size")+ scale_x_continuous(breaks=seq(1.5,2,by=0.25))+
+   theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  )+geom_ribbon(aes(x = ecosystem,
+                    ymin = fixed_coef31[2,1]*ecosystem+fixed_coef31[1,1],
+                    ymax = fixed_coef31[2,3]*ecosystem+fixed_coef31[1,3]), alpha=0.1, color='#E69F00', fill='#E69F00')+
+   geom_ribbon(aes(x = ecosystem,
+                  ymin = fixed_coef32[2,1]*ecosystem+fixed_coef32[1,1],
+                  ymax = fixed_coef32[2,3]*ecosystem+fixed_coef32[1,3]), alpha=0.1, color='#56B4E9', fill='#56B4E9')
+
+for(i in 1:nrow(random_coef1)){
+  #plot random effects
+  g3=g3+geom_line(data = data.frame(ecosystem = d_eco1$ecosystem,
+              FCL=(random_coef31[i, 2]+fixed_coef31[2,2])*d_eco1$ecosystem+(random_coef31[i, 1]+fixed_coef31[1,2]),
+              disturbance=0.1), linewidth=0.5, linetype=2, color='#E69F00')+
+    geom_line(data = data.frame(ecosystem = d_eco2$ecosystem,
+              FCL=(random_coef32[i, 2]+fixed_coef32[2,2])*d_eco2$ecosystem+(random_coef32[i, 1]+fixed_coef32[1,2]),
+              disturbance=0.8), linewidth=0.5, linetype=2)
+}
+    g3=g3+geom_line(aes(x=ecosystem, y=fixed_coef31[2,2]*ecosystem+fixed_coef31[1,2]), linewidth=2, color='#E69F00')+
+    geom_line(aes(x=ecosystem, y=fixed_coef32[2,2]*ecosystem+fixed_coef32[1,2]), linewidth=2)
+  
+  
+test41=lqmm(richness ~ ecosystem, random= ~ ecosystem+1 , group=FW, tau = c(0.25, 0.5, 0.75), data=d_eco1, control= lqmmControl(method = "df"))
+fixed_coef41=coef(test41)
+random_coef41=ranef(test41)$`0.50`# we use only medians for random  effect
+
+test42=lqmm(richness ~ ecosystem, random= ~ ecosystem+1 , group=FW, tau = c(0.25, 0.5, 0.75), data=d_eco2, control= lqmmControl(method = "df"))
+fixed_coef42=coef(test42)
+random_coef42=ranef(test42)$`0.50` # we use only medians for random  effect
+print('Richness over ecosystem size')
+#print(summary(test41))
+#print(summary(test42))
+    
+g4=ggplot(d_eco, aes(x=ecosystem, y=richness, color=factor(disturbance), fill=factor(disturbance)))+
+   scale_color_manual(values=c("#E69F00", "#56B4E9"))+
+   ylim(c(0, 30))+theme_bw() +ylab('Richness')+xlab("Ecosystem size")+ scale_x_continuous(breaks=seq(1.5,2,by=0.25))+
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+geom_ribbon(aes(x = ecosystem,
+                    ymin = fixed_coef41[2,1]*ecosystem+fixed_coef41[1,1],
+                    ymax = fixed_coef41[2,3]*ecosystem+fixed_coef41[1,3]), alpha=0.1, color='#E69F00', fill='#E69F00')+
+   geom_ribbon(aes(x = ecosystem,
+                  ymin = fixed_coef42[2,1]*ecosystem+fixed_coef42[1,1],
+                  ymax = fixed_coef42[2,3]*ecosystem+fixed_coef42[1,3]), alpha=0.1, color='#56B4E9', fill='#56B4E9')
+
+for(i in 1:nrow(random_coef1)){
+  #plot random effects
+  g4=g4+geom_line(data = data.frame(ecosystem = d_eco1$ecosystem,
+              richness=(random_coef41[i, 2]+fixed_coef41[2,2])*d_eco1$ecosystem+(random_coef41[i, 1]+fixed_coef41[1,2]),
+              disturbance=0.1), linewidth=0.5, linetype=2, color='#E69F00')+
+    geom_line(data = data.frame(ecosystem = d_eco2$ecosystem,
+              richness=(random_coef42[i, 2]+fixed_coef42[2,2])*d_eco2$ecosystem+(random_coef42[i, 1]+fixed_coef42[1,2]),
+              disturbance=0.8), linewidth=0.5, linetype=2)
+}
+    g4=g4+geom_line(aes(x=ecosystem, y=fixed_coef41[2,2]*ecosystem+fixed_coef41[1,2]), linewidth=2, color='#E69F00')+
+    geom_line(aes(x=ecosystem, y=fixed_coef42[2,2]*ecosystem+fixed_coef42[1,2]), linewidth=2)+
+   guides(color=guide_legend(title="Disturbance"), )
+    
+   
+   # data processing
   ecosystem=unique(df$ecosystem)
   disturbance=unique(df$disturbance)
   data=expand.grid(Ecosystem=unique(df$ecosystem),
@@ -1493,90 +1994,6 @@ Heatmap_generator=function(df, gname1=FALSE, gname2=FALSE){
    geom_curve(aes(xend = 1.375, yend = 0.1, x = 1.375, y = 0.8),
              data = data, size=1.5,
              arrow = arrow(length = unit(0.07, "npc"), ends="both"))
-    #quantile regression
- 
-  # plot some distributions of  FCL over emvironments
-  d_sub=subset(df,disturbance <0.4)
-  
-  d_dist1=subset(d_sub, ecosystem==0.5)
-  d_dist2=subset(d_sub,  ecosystem==2)
-  d_dist=rbind(d_dist1, d_dist2)
-  
-  print(summary(rq(FCL ~ disturbance, data = d_dist1, tau=0.5)))
-  print(summary(rq(FCL ~ disturbance, data = d_dist2, tau=0.5)))
-  
-  g1=ggplot(d_dist, aes(x=disturbance, y=FCL, color=factor(ecosystem), fill=factor(ecosystem)))+
-  stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7)+stat_summary(geom="line", fun=median, linewidth=2)+
-    #geom_violin(draw_quantiles = c(0.5))+
-  ylab('FCL')+xlab("Disturbance")+
-  ylim(c(0, 4))+
-  scale_x_continuous(breaks=seq(0.1,0.3,by=0.1))+
-  theme_bw()+theme(
-  axis.text.x = element_text(size=13),
-  axis.title.x = element_text(size=18),
-   axis.text.y = element_text(size=13),
-  axis.title.y = element_text(size=18),
-panel.grid = element_blank(),
-legend.position = "none")+
-  guides(color=guide_legend(title="Ecosystem size"))
-  
-   g2=ggplot(d_dist, aes(x=disturbance, y=richness, color=factor(ecosystem), fill=factor(ecosystem)))+
-  #geom_violin(draw_quantiles = c(0.5))+
-     stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
-     ylab('Richness')+xlab("Disturbance")+
-  ylim(c(0, 25))+
-  scale_x_continuous(breaks=seq(0.1,0.3,by=0.1))+
-  theme_bw()+theme(
-  axis.text.x = element_text(size=13),
-  axis.title.x = element_text(size=18),
-   axis.text.y = element_text(size=13),
-  axis.title.y = element_text(size=18),
-panel.grid = element_blank(),
-legend.title = element_text(size=18),
-legend.text = element_text(size=13))+
-  guides(color=guide_legend(title="Ecosystem size"), fill=FALSE)
-  
-  
-  d_sub=subset(df,ecosystem >1.25)
-  
-  d_eco1=subset(d_sub, disturbance==0.1)
-  d_eco2=subset(d_sub,  disturbance==0.8)
-  d_eco=rbind(d_eco1, d_eco2)
-  
-  print(summary(rq(FCL ~ ecosystem, data = d_eco1, tau=0.5)))
-  print(summary(rq(FCL ~ ecosystem, data = d_eco2, tau=0.5)))
-  
-  g3=ggplot(d_eco, aes(x=ecosystem, y=FCL, color=factor(disturbance), fill=factor(disturbance)))+
-  stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
-    #geom_violin(draw_quantiles = c(0.5))
-  ylab('FCL')+xlab("Ecosystem size")+
-  ylim(c(0, 4))+
-    scale_x_continuous(breaks=seq(1.5,2,by=0.25))+
-  theme_bw()+theme(
-  axis.text.x = element_text(size=13),
-  axis.title.x = element_text(size=18),
-   axis.text.y = element_text(size=13),
-  axis.title.y = element_text(size=18),
-panel.grid = element_blank(),
-legend.position="none")+
-  guides(color=guide_legend(title="Disturbance"), )
-  
-   g4=ggplot(d_eco, aes(x=ecosystem, y=richness, color=factor(disturbance),fill=factor(disturbance)))+
-     stat_summary(geom="ribbon", fun.ymin = function(x) quantile(x, 0.25), fun.ymax = function(x) quantile(x, 0.75), alpha=0.3)+stat_summary(geom="point", fun=median, size=7) +stat_summary(geom="line", fun=median, linewidth=2)+
-     #geom_violin(draw_quantiles = c(0.5))+
-     ylab('Richness')+xlab("Ecosystem size")+
-  ylim(c(0, 25))+
-      scale_x_continuous(breaks=seq(1.5,2,by=0.25))+
-  theme_bw()+theme(
-  axis.text.x = element_text(size=13),
-  axis.title.x = element_text(size=18),
-   axis.text.y = element_text(size=13),
-  axis.title.y = element_text(size=18),
-panel.grid = element_blank(),
-legend.title = element_text(size=18),
-legend.text = element_text(size=13))+
-  guides(color=guide_legend(title="Disturbance"), fill=FALSE)
-   
   
    if(gname1 !=FALSE){
       G= g|(g1|g2)/(g3|g4)
@@ -1604,14 +2021,60 @@ legend.text = element_text(size=13))+
      
      
      # test
-     G=(g/p)|(g1|g2)/(g3|g4)
+     G=(g|p)/(g1|g2|g3|g4)
      G=G+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
      ggsave(paste0('./Simulations/simulation_pdf/', "all_summary_heatmap.pdf"), heigh=10, width=16)
+    
    }
   
 }
 Heatmap_generator(df_mean, 'FCLmean_heatmap.pdf', 'FCLmean_Richness_heatmap.pdf')
 
+```
+
+
+```{r}
+#code for lqmm
+test1=lqmm(FCL ~ ecosystem, random= ~ ecosystem+1 , group=FW, tau = c(0.25, 0.5,0.75), data=d_eco1, control= lqmmControl(method = "df"))
+fixed_coef1=coef(test1)
+random_coef1=ranef(test1)$`0.50`# we use only medians for random  effect
+
+test2=lqmm(FCL ~ ecosystem, random= ~ ecosystem+1 , group=FW, tau = c(0.25, 0.5, 0.75), data=d_eco2, control= lqmmControl(method = "df"))
+fixed_coef2=coef(test2)
+random_coef2=ranef(test2)$`0.50` # we use only medians for random  effect
+# then we need to plot them usin gggplot
+g3=ggplot(d_eco, aes(x=ecosystem, y=FCL, color=factor(disturbance), fill=factor(disturbance)))+
+  scale_color_manual(values=c("#E69F00", "#56B4E9"))+
+   ylim(c(0, 4))+theme_bw() +ylab('FCL')+xlab("Ecosystem size")+
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+geom_ribbon(aes(x = ecosystem,
+                    ymin = fixed_coef1[2,1]*ecosystem+fixed_coef1[1,1],
+                    ymax = fixed_coef1[2,3]*ecosystem+fixed_coef1[1,3]), alpha=0.1, color='#E69F00', fill='#E69F00')+
+   geom_ribbon(aes(x = ecosystem,
+                  ymin = fixed_coef2[2,1]*ecosystem+fixed_coef2[1,1],
+                  ymax = fixed_coef2[2,3]*ecosystem+fixed_coef2[1,3]), alpha=0.1, color='#56B4E9', fill='#56B4E9')
+
+for(i in 1:nrow(random_coef1)){
+  #plot random effects
+  g3=g3+geom_line(data = data.frame(ecosystem = d_eco1$ecosystem,
+              FCL=(random_coef1[i, 2]+fixed_coef1[2,2])*d_eco1$ecosystem+(random_coef1[i, 1]+fixed_coef1[1,2]),
+              disturbance=0.1), linewidth=0.5, linetype=2, color='#E69F00')+
+    geom_line(data = data.frame(ecosystem = d_eco2$ecosystem,
+              FCL=(random_coef2[i, 2]+fixed_coef2[2,2])*d_eco2$ecosystem+(random_coef2[i, 1]+fixed_coef2[1,2]),
+              disturbance=0.8), linewidth=0.5, linetype=2)
+}
+    g3=g3+geom_line(aes(x=ecosystem, y=fixed_coef1[2,2]*ecosystem+fixed_coef1[1,2]), linewidth=2, color='#E69F00')+
+    geom_line(aes(x=ecosystem, y=fixed_coef2[2,2]*ecosystem+fixed_coef2[1,2]), linewidth=2)+
+   guides(color=guide_legend(title="Disturbance"), )
+  
 ```
 We also show heatmaps of FCL long and FCL short
 ```{r other heat maps}

@@ -1,0 +1,526 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+In this notebook, we implment that ecosystem size decreases the extinction rates due to
+predation, instead of increasing colonization rates.
+
+```{r simulations}
+library(GillespieSSA)
+library(igraph)
+colonization_extinction_single=function(A_f, B){
+ #-----------------------------------
+# Return symbolic representations of colonization and extinction rates used in Gli. alg
+# A_f: adjacency matrix of the food web
+ #  parm should contain B: number of basal species
+ # --------------- IMPORTANT -------------------
+ # It seems that GillespieSSA stops simulations when all x = 0. 
+ # For this reason,  we assume P=1 is absent while P=2 is present, 
+ # although we will use P=0 as absence and P=1 as presence in the manuscript
+ #-----------------------------------
+ # colonization and extinction rate in single patch
+ N=ncol(A_f) # number of species
+ F=rep(0, N) # colonization
+ G=rep(0, N) # extinction
+ P=paste0("P", seq(from = 1, to = N, by = 1)) # presence/absence of species in the patch
+ sum_basal=paste(P[1], -1) # symbolic representation of sum of basal species
+ if(B>1){
+   for (i in 2:B){
+     sum_basal = paste(sum_basal, '+', P[i], -1)
+   }
+ }
+ # calculate number of prey and predators per species , respectively
+ rho=rep(0, N) # number of prey
+ q=rep(0, N) # number of predator
+ for (i in 1:N){
+   for (k in 1:N){
+     # Count number of prey and predators
+     if (A_f[k,i]>0){
+       if(rho[i]==0){
+         rho[i] = paste0(P[k], -1)
+       }
+       else{
+         rho[i] = paste(rho[i], '+', P[k], -1) #If P=2=> add one (see above IMPORTANT)
+       }
+     }
+     if (A_f[i, k]>0){
+       if(q[i]==0){
+         q[i] = paste0(P[k], -1)
+       }
+       else{
+         q[i] = paste(q[i], '+', P[k], -1)
+       }
+     }
+   }
+   
+  # generate species colonization rate
+   if (i <= B){
+     # species i is a basal species
+     F[i] = paste0("(2-(", P[i], "))*a_",i, "*exp(-(", sum_basal, ")/R)")
+   }
+   else{
+     # species i is a non-basal species
+     F[i] = paste0("(2-(", P[i],"))*b_", i, "*(", rho[i], ")^(h1)/((", rho[i], ")^(h1)+K^(h1))")
+   }
+   # generate extinction rate
+   G[i] =paste0("(", P[i], "-1)*(c_", i, "*(", q[i], ")^(h2)/((", q[i], ")^(h2)+L^(h2)) + d_",i, "*M^(h3)/(M^(h3)+(", rho[i], ")^(h3)) +e_",i, ")")
+ }
+ return(c(F, G))
+}
+Presence=function(state, A_f, B){
+ # remove species that do not have any prey species
+ # state: presence of species 
+ # A_f adjacency matrix of food web
+ # B the number of basal species
+ N=length(state)
+ for (i in (B+1):N){
+   # we do not care about basal species i=1, ..., B
+   if (sum(A_f[, i]*state )< 1 ){
+     # species i has no prey species and should go extinct
+     state[i]=0
+   }
+ }
+ return (state)
+}
+
+single_patch = function (A_f, parm, TL_def=0, replicate=100, tf=1000, SimName='single patch model'){
+#------------- Analyze single patch model given the number of data----------
+ # A_f adjacency matrix of food web
+ # parm parameters used to run simulations
+ # parms include a(colonization of basal), b (colonization of non-basal),c (max extinction rate by predation),d (max extinction rate by lack of prey), R (resource availability in patch), 
+ # h1, h2, h3, K, L, M,
+ # TL_def: definition of TL
+ # replicate number of replicate we run
+ # tf time final
+ #--------------define some  values and vectors------------------------
+ N= ncol(A_f) # number of species in the system
+ B=sum(colSums(A_f)==0)  # number of basal species is the number of cols that sum is 0
+ init=rep(1, N) # initially no species exist. REMEBER, we use P=1 as absence and P=2 as presence in the codes
+ names(init)=paste0("P", seq(from = 1, to = N, by = 1)) # add names P_i (dropping j=1 from P_ij)
+ #We generate colonization and extinction functions from A_f
+ a=colonization_extinction_single(A_f, B) # Define propensity functions 
+ nu = matrix(c(diag(N), -diag(N)), nrow=N) # Define state-change matrix
+ final_presence=c()
+ # Debugged until above
+ for(rep in 1:replicate){
+   #------------ Single run of dynamics --------------
+   # Currently simulation ends quickly... why?
+   out <- ssa(x0 = init,a = a,nu = nu,parms = parm ,tf = tf,
+   method = ssa.d(),simName = SimName,verbose = FALSE,consoleInterval = 1)
+   # here we use slow direct method, but we can change the method once we confirm that approx methods are fine
+   # Then we want to calculate FCL
+   if (out$data[nrow(out$data),1] >tf){
+     # we now use 1 as presence and 0 as absence
+     state_f=out$data[nrow(out$data)-2, 2:ncol(out$data)]-1# time and presence/absence vector at the end
+   }
+   else{
+     state_f=out$data[nrow(out$data), 2:ncol(out$data)]-1
+   }
+   #print(state_f)
+   final_presence=rbind(final_presence, Presence(state_f, A_f, B))
+ }
+ colnames(final_presence)=paste0("Sp", seq(from = 1, to = N, by = 1))
+ return (data.frame(Replicate=seq(1, replicate, 1), final_presence))
+ }
+ 
+ ParmGeneraotr = function(N, B, resource, disturbunce, eco_size){
+ #----------------------------------------
+ #Generate parameters needed to run simulations
+ # N: number of total species in a community
+ # B: number of basal species
+ # resource: resource availability that determines the number of coexisting basal species
+ # disturbances: strength of disturbances that drive species extinction
+ # eco_size: eco-system sizes which negatively affect the extinction rate due to predation
+ #----------------------------------------
+ parm=c(rep(1, N), # a 
+        rep(1, N), # b
+        rep(1-eco_size, N), # c
+        rep(0, B), # d_basal
+        rep(10, N-B), #d_non-basal
+        rep(disturbunce,N), # e
+        resource, # R
+        1, 2, 0.05, 1,1,1) # K-M, h1, h2, h3
+ A=c()
+ B=c()
+ C=c()
+ D=c()
+ E=c()
+ for (i in 1:N){
+   A=c(A, paste0("a_", i))
+   B=c(B, paste0("b_", i))
+   C=c(C, paste0("c_", i))
+   D=c(D, paste0("d_", i))
+   E=c(E, paste0("e_", i))
+ }
+ name_parm=c(A, B, C, D, E)
+ name_parm=c(name_parm, "R", "K", "L", "M", "h1", "h2", "h3")
+ names(parm)=name_parm
+ return(parm)
+ }
+ Main=function(num_network, TL_def, N=32, Basal=4){
+ #--------------------------------
+ # Main function to run simulations and save FCL at the end
+ # N (int): number of species in a community
+ # B (list): list of the number of basal species
+ # num_network (int): number of food webs per B
+ #--------------------------------
+ # design resource parm set. This is based on N and B
+ #E=c(0.1, 0.5, 0.9) # preliminary analysis
+ E=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,0.8, 0.9)
+ #R=c(1, 2, 4, 8) #preliminary analysis
+ R=c(4)
+ #Eco=c(0.5, 1, 2) #preliminary analysis
+ Eco=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,0.8, 0.9)
+ setwd(paste0("./Species", N, "/basal",Basal))
+ for (j in 1:num_network){
+   # Read adjacency matrix of food web
+   A_f=read.csv(file = paste0("TLDef_", TL_def, "FoodWeb_", j, ".csv"))
+   ans=c()
+   for (k in 1:length(R)){
+     resource = R[k]
+     for (l in 1:length(E)){
+         disturbance=E[l]
+         for(m in 1:length(Eco)){
+           eco_size=Eco[m]
+            #Generate parm
+             parm = ParmGeneraotr(N, Basal, resource, disturbance, eco_size)
+             # Run simulation
+             fcl=single_patch(A_f, parm, TL_def, replicate=20)
+             fcl=cbind(rep(resource,nrow(fcl)), rep(disturbance,nrow(fcl)),rep(eco_size, nrow(fcl)), fcl)
+             names(fcl)=c("resource", "disturbance", "ecosystem", "replicate",
+                          paste0("Sp", seq(from = 1, to = N, by = 1)))
+             ans=rbind(ans, fcl)
+         }
+     }
+   }
+   write.table(ans, paste0("./AlternativeData/TLDef_",TL_def , "Presence_FoodWeb_", j,".csv"), sep=",", row.names = FALSE)
+ }
+ setwd("../../")
+}
+```
+
+Below we calculate species richness and fractions of motifs from the data
+
+```{r data processing}
+# Calculate FCL and motifs
+library(igraph)
+library(tidyverse)
+Reconstract_FW =function(presence_array, full_FW, TL_def){
+  #--------------------------------------------
+  # This function generate realized food web and calculate FWL and food web motives
+  # presence_array: array of presence of each species. 1: presence, 0: absence
+  # full_FW NxN food web. The realized food web is a sub-matrix of this matrix
+  # TL_def: 0 Trophic level is given by the mean prey trophic levels
+  #     -1: TL is defined by the shortest-path length
+  #      1: TL is defined by the longest-path length  
+  #--------------------------------------------
+  n= sum (presence_array) # number of existing species
+  if(n==0){
+    # no species exist
+    FCL=-1
+    motif=matrix(rep(NaN, 16), ncol=16)
+    data=data.frame(FCL, richness=0, motif)
+    colnames(data) = c('FCL', 'richness', "empty","monoA.single","bi.single",
+                    "exploitative","apparent","chain","d4","d3","omnivory",
+                    "s3","d8","d2","d1","d5","d7","d6")
+   data=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative) ) # ignore others as FW is acyclic 
+    # change order
+    data=data %>% select(order(colnames(data)))
+    data=dplyr::select(data, FCL,chain,omnivory, apparent, exploitative, everything())
+    return(data)
+  }
+  adj=matrix(0, n, n)
+  indexes=c() # indexes of present species
+  for (i in 1:length(presence_array)){
+    if(presence_array[i]==1){
+      indexes=c(indexes, i)
+    }
+  }
+  for(i in 1:n){
+    for (j in  1:n){
+      adj[i, j] = full_FW[indexes[i], indexes[j]]
+    }
+  }
+  # calculate FCL
+ 
+  TL=rep(0, n) # trophic levels
+  B=c() # array of basal species
+  for (i in 1:n){
+    if(sum(adj[, i])==0)
+    {
+      # species i is a basal species
+      TL[i]=1
+      B=c(B, i)
+    }
+    else{
+      # calculate TL
+      if (TL_def==0){
+        # TL=1 + mean of prey TL
+        
+        TL[i] = 1+(TL[1:(i-1)]%*%adj[1:(i-1), i])/sum(adj[1:(i-1), i])
+      }else if(TL_def==-1){
+        #TL= 1+ shortest-path length from basal species
+         graph=graph_from_adjacency_matrix(adj,mode='directed') # graph used in igraph
+         
+         TL[i] = 1+min(distances(graph,to = i, mode='out')[B]) 
+      } else{
+        #TL = 1+ longest-path length
+        graph=graph_from_adjacency_matrix(-adj,mode='directed', weight=TRUE)
+        TL[i] =1- min(distances(graph,to = i, mode='out')[B]) # we only care distances from basal species to
+      }
+    }
+  }
+  FCL=-1+max(TL)
+  
+  # calculate fractions of motives
+  graph=graph_from_adjacency_matrix(adj,mode='directed')
+  motif=matrix(triad_census(graph), nrow=1)
+  #motif=motif/sum(motif) # convert into fractions
+ 
+  data=data.frame(FCL, richness=n, motif)
+  colnames(data) = c('FCL', 'richness', "empty","monoA.single","bi.single",
+                    "exploitative","apparent","chain","d4","d3","omnivory",
+                    "s3","d8","d2","d1","d5","d7","d6")
+  data=subset(data, select = c(FCL, richness, chain, omnivory, apparent, exploitative) ) # ignore others as FW is acyclic 
+  data[3:ncol(data)]=data[3:ncol(data)]/(sum(data[3:ncol(data)])) # fractions of motives
+  # change order
+  data=data %>% select(order(colnames(data)))
+  data=dplyr::select(data, richness, chain,omnivory, apparent, exploitative, FCL)
+  return(data)
+}
+
+
+Processor=function(TL_def, fname){
+  Ans=c()
+  for(i in 1:30){
+    data=read.csv(paste0("./Species32/basal4/AlternativeData/TLDef_",TL_def , "Presence_FoodWeb_", i,".csv"))
+    full_FW=read.csv(paste0("./Species32/basal4/TLDef_",TL_def , "FoodWeb_", i, ".csv"))
+    #Calculate FCL , richness and fractions of motifs
+    for(j in 1:nrow(data)){
+      df=data[j, ]
+      ans=Reconstract_FW(df[5:ncol(df)], full_FW, TL_def)
+      new_df=cbind(ans, df[1:3])
+      Ans=rbind(Ans, new_df)
+    }
+  }
+  write.csv(Ans, paste0("./Species32/basal4/AlternativeData/",fname , ".csv"), row.names = FALSE)
+}
+Processor(0, "FCLmean_summary")
+Processor(1, "FCLlong_summary")
+Processor(-1, "FCLshort_summary")
+```
+
+Next we show some important plots: correlations, FCL against richness or motifs, and 
+FCL and richness over the enviornmental facotrs
+
+```{r Analyze the results}
+library(ggplot2)
+library(patchwork)
+library(reshape2)
+library(nlme)
+
+Sensitivity_plot=function(df, fname_head){
+  # Plot the results of sensitivity analysis
+  # df data frame of sensitiviy analsis results
+  # fname_head header of fig name
+  
+  #g1 correlation heat map
+  # we omit rows with na (no motifs) because such canses have low species richnes and biases correlations
+  df_omit=na.omit(df)
+  df_omit = subset(df_omit, select = -c(Resource)) # we do not use resource availability as it was fixed.
+  cormat=round(cor(df_omit, method="spearman"), 1)
+  cormat[upper.tri(cormat)]=NA # we do not need the lower triangle
+  melted_cormat = melt(cormat)
+  g1=ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
+    xlab('')+ylab("")+
+     geom_tile(color = "white")+
+     scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+       midpoint = 0, limit = c(-1,1), space = "Lab", 
+       name="Spearman\nCorr.") +
+      theme_minimal()+ 
+     theme(axis.text.x = element_text(angle = 90, vjust = 1, 
+        size = 12, hjust = 1), axis.text.y = element_text(size=12))+
+     coord_fixed()+geom_text(aes(Var2, Var1, label = value), color = "black", size = 3)
+
+  
+  # fitting to saturating + quadratic function
+  #add FW ID
+  df$FW=rep(1:30, each=1620) 
+  df_fill=df
+  df_fill[is.na(df_fill)]=0 # need to fill na in nlme
+  
+  #1. fit the mixed model
+ 
+  model=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
+               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+   fixed_coefs=model$coefficients$fixed #
+   random_coefs=model$coefficients$random$FW
+   #2. Show fixed effect
+g2= ggplot(df, aes(x = Richness, y = FCL)) +
+  ylab('FCL') +
+  xlab("Richness") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  ggtitle('Simulation') +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))-fixed_coefs[3]*mean(df$Chain, na.rm=TRUE)^2+fixed_coefs[4]*mean(df$Chain, na.rm=TRUE)-1, color='green', linewidth=2)
+# show random effects
+for (i in 1:nrow(random_coefs)) {
+  g2 = g2 +
+    geom_line(data = data.frame(Richness = df$Richness,
+              FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df$Richness)) +
+                          (random_coefs[i, 3] - fixed_coefs[3]) * mean(df$Chain, na.rm = TRUE)^2 +
+                          (random_coefs[i, 4] + fixed_coefs[4]) * mean(df$Chain, na.rm = TRUE) - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+}
+
+g3= ggplot(df, aes(x = Chain, y = FCL)) +
+  ylab('FCL') +
+  xlab("Chain") +
+  geom_bin2d() +
+  scale_fill_continuous(low = "gray90", high = "black") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 20),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 20),
+    plot.title = element_text(size = 28, hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14)
+  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df$Richness, na.rm=TRUE)))-fixed_coefs[3]*x^2+fixed_coefs[4]*x-1, color='green', linewidth=2)
+
+for (i in 1:nrow(random_coefs)) {
+  g3 = g3 +
+    geom_line(data = data.frame(Chain = df$Chain,
+  FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df$Richness, na.rm=TRUE))) +
+                          (random_coefs[i, 3] - fixed_coefs[3]) * df$Chain^2 +
+                          (random_coefs[i, 4] + fixed_coefs[4]) * df$Chain - 1),
+    linewidth = 0.5,linetype = 2, color='black')
+  }
+  
+  
+  
+  
+  # heat map of richness or FCL over disturbance and ecosystem size
+  ecosystem=unique(df$Eco_size)
+  disturbance=unique(df$Distrubance)
+  data=expand.grid(Ecosystem=unique(df$Ecosystem),
+                Disturbance=unique(df$Disturbance))
+  median_FCL=c()
+  median_richness=c()
+  for (i in 1:nrow(data)){
+    sub_df=subset(df, Ecosystem==data$Ecosystem[i] & Disturbance==data$Disturbance[i])
+    median_FCL=c(median_FCL, median(sub_df$FCL))
+    median_richness=c(median_richness, median(sub_df$Richness))
+  }
+ 
+  data$FCL=median_FCL
+  data$Richness=median_richness
+  
+  g4=ggplot(data, aes(Ecosystem, Disturbance, fill= Richness), fig(8,8)) + 
+    xlab('Ecosystem size')+ylab("Disturbance")+
+    geom_tile(color = "black") +scale_y_continuous(breaks=seq(0.2,0.8,by=0.2))+
+    scale_x_continuous(breaks=seq(0.2,0.8,by=0.2))+
+    scale_fill_gradient(breaks = seq(0, 32, by=5), low="white", high="blue", name="Richness") +geom_text(aes(label = round(Richness, 1)))+
+     theme_bw()+ coord_fixed(ratio=0.8)+
+    theme(
+     axis.text.x = element_text(size=14),
+     axis.title.x = element_text(size=20),
+     axis.text.y = element_text(size=14),
+     axis.title.y = element_text(size=20),
+     panel.grid = element_blank(),
+     legend.title = element_text(size=20),
+     legend.text = element_text(size=14))+
+    guides(fill = guide_colourbar(barwidth =1,
+                                barheight = 10))
+  
+  g5=ggplot(data, aes(Ecosystem, Disturbance, fill= FCL), fig(8,8)) + 
+    xlab('Ecosystem size')+ylab("Disturbance")+
+    scale_x_continuous(breaks=seq(0.2,0.8,by=0.2))+
+    geom_tile(color = "black") +scale_y_continuous(breaks=seq(0.2,0.8,by=0.2))+
+    scale_fill_gradient(low="white", high="blue", name="FCL")+
+     theme_bw()+coord_fixed(ratio=0.8)+
+    theme(
+     axis.text.x = element_text(size=14),
+     axis.title.x = element_text(size=20),
+     axis.text.y = element_text(size=14),
+     axis.title.y = element_text(size=20),
+     panel.grid = element_blank(),
+     legend.title = element_text(size=20),
+     legend.text = element_text(size=14))+
+    guides(fill = guide_colourbar(barwidth =1,
+                                barheight = 10))
+  G=g1+plot_spacer() +g2+g3+
+       g5+g4+plot_layout(nrow=3,)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
+  ggsave(paste0('./Species32/basal4/AlternativeData/', fname_head, 'summary.png'), width=12, height=12)
+}
+
+
+# run codes
+Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv'), 'FCLmean')
+Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv'), 'FCLlong')
+Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv'), 'FCLshort')
+```
+
+Below, you can see fitted functions used above
+```{r fitting}
+df_mean=read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv')
+df_fill=df_mean
+df_fill[is.na(df_fill)]=0
+df_fill$FW=rep(1:30, each=1620) 
+ model_mean=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
+               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+print(model_mean)
+
+df_long=read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv')
+df_fill=df_long
+df_fill[is.na(df_fill)]=0
+df_fill$FW=rep(1:30, each=1620) 
+ model_mean=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
+               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+print(model_long)
+
+df_short=read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv')
+df_fill=df_short
+df_fill[is.na(df_short)]=0
+df_fill$FW=rep(1:30, each=1620) 
+ model_short=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
+               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+print(model_short)
+```

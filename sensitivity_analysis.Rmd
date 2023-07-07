@@ -20,7 +20,6 @@ We also randomly sample ecosystem size and disturbance while fixing resource ava
 ```{r Define functions}
 library(igraph)
 library(GillespieSSA)
-library(igraph)
 library(tidyverse)
 
 #Define N-species food web
