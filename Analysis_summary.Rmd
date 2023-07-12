@@ -268,6 +268,8 @@ stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
 
   
   #1. fit the mixed model
+  df_mean_fill=df_mean
+  df_mean_fill[is.na(df_mean_fill)]=0
   model=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_mean_fill, 
                start=c(a=max(df_mean_fill$FCL)/2, b=1, c=1, d=1), 
                 fixed = a+b+c+d ~ 1,
@@ -303,7 +305,7 @@ for (i in 1:nrow(random_coefs)) {
               FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df_mean$richness)) +
                           (random_coefs[i, 3] - fixed_coefs[3]) * mean(df_mean$chain, na.rm = TRUE)^2 +
                           (random_coefs[i, 4] + fixed_coefs[4]) * mean(df_mean$chain, na.rm = TRUE) - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
   }
 
 
@@ -331,7 +333,7 @@ for (i in 1:nrow(random_coefs)) {
   FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df_mean$richness, na.rm=TRUE))) +
                           (random_coefs[i, 3] - fixed_coefs[3]) * df_mean$chain^2 +
                           (random_coefs[i, 4] + fixed_coefs[4]) * df_mean$chain - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
   }
 
 stat_null=Motif_frac_dist(1, seq(3, max(df_mean$richness)))
@@ -393,7 +395,8 @@ stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
     legend.text=element_text(size=14),
     legend.title = element_text(size=14)
     )
-  
+   df_long_fill=df_long
+  df_long_fill[is.na(df_long_fill)]=0
   model=nlme(FCL ~ a*(1-exp(-b*richness))-c*chain^2+d*chain-1, data=df_long_fill, 
                start=c(a=max(df_mean_fill$FCL)/2, b=1, c=1, d=1), 
                 fixed = a+b+c+d ~ 1,
@@ -430,7 +433,7 @@ for (i in 1:nrow(random_coefs)) {
               FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df_long$richness)) +
                           (random_coefs[i, 3] - fixed_coefs[3]) * mean(df_long$chain, na.rm = TRUE)^2 +
                           (random_coefs[i, 4] + fixed_coefs[4]) * mean(df_long$chain, na.rm = TRUE) - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
   }
 
 
@@ -458,7 +461,7 @@ for (i in 1:nrow(random_coefs)) {
   FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df_long$richness, na.rm=TRUE))) +
                           (random_coefs[i, 3] - fixed_coefs[3]) * df_long$chain^2 +
                           (random_coefs[i, 4] + fixed_coefs[4]) * df_long$chain - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
   }
 
 
@@ -525,7 +528,8 @@ stat_null=Motif_frac_dist(1, seq(3, max(df_emp$Richness)))
     legend.text=element_text(size=14),
     legend.title = element_text(size=14)
     )
-
+ df_short_fill=df_short
+  df_short_fill[is.na(df_short_fill)]=0
 model=nlme(FCL ~ a*(1-exp(-b*richness))+c*(1-exp(-d*chain))-1, data=df_short_fill, 
               start=c(a=max(df_short_fill$FCL)/2, b=3.05, c=max(df_short_fill$FCL)/2, d=1), 
                fixed = a+b+c+d ~ 1,
@@ -561,7 +565,7 @@ for (i in 1:nrow(random_coefs)) {
     geom_line(data = data.frame(richness = df_short$richness,
               FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df_short$richness)) +
                           (random_coefs[i, 3] + fixed_coefs[3]) * (1 - exp((random_coefs[i, 4] - fixed_coefs[4]) * mean(df_short$chain, na.rm=TRUE))) - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
   }
 
 
@@ -588,7 +592,7 @@ for (i in 1:nrow(random_coefs)) {
      geom_line(data = data.frame(chain = df_short$chain,
               FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df_short$richness, rm.na=TRUE))) +
           (random_coefs[i, 3] + fixed_coefs[3]) * (1 - exp((random_coefs[i, 4] - fixed_coefs[4]) * df_short$chain)) - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
   }
 stat_null=Motif_frac_dist(1, seq(3, max(df_short$richness)))
   stat_null$Up=pmin(stat_null$Mean+2*stat_null$SD, 1)

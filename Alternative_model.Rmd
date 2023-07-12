@@ -314,16 +314,196 @@ Processor(-1, "FCLshort_summary")
 Next we show some important plots: correlations, FCL against richness or motifs, and 
 FCL and richness over the enviornmental facotrs
 
+
+
+```{r model selection}
+library(nlme)
+AIC_cal_nlme= function(df, b_start=1.5){
+  #In nlme, we need to fill NA with zeros
+  #We ignore warning meesages and force return
+  df[is.na(df)]=0
+  df$FW=rep(1:30, each=1620) 
+    model1=nlme(FCL ~ a*Richness-1, data=df, start=c(a=1.05), 
+               fixed = a ~ 1,
+               random = a  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01), upper=c(a=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE )) # linear func of richness
+  model2=nlme(FCL ~ a*(1-exp(-b*Richness))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+             fixed = a+b ~ 1,
+             random = a+b  ~ 1 | FW,
+             control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=max(df$FCL)+1, b =10),
+                       returnObject=TRUE,msWarnNoConv=FALSE)) # saturating func of Richness
+  model3=nlme(FCL ~ -a*Richness^2+b*Richness-1, data=df, start=c(a=1, b=1.05), 
+              fixed = a +b~ 1,
+              random = a+b  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=10, b=10),
+              returnObject=TRUE,msWarnNoConv=FALSE)) # quadratic func of Richness
+  model4=nlme(FCL ~ a*Chain-1, data=df, start=c(a=1),  
+              fixed = a ~ 1,
+              random = a  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01), upper=(a=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE)) # linear func of Chain
+  model5=nlme(FCL ~ a*(1-exp(-b*Chain))-1, data=df, start=c(a=max(df$FCL)/2, b=b_start),  
+              fixed = a+b ~ 1,
+              random = a+b  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=max(df$FCL)+1, b=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE)) # saturating func of Chain
+  model6=nlme(FCL ~ -a*Chain^2+b*Chain-1, data=df, start=c(a=1, b=1), 
+              fixed = a+b ~ 1,
+              random = a+b  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01), upper=c(a=10, b=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE)) # quadratic func of Chain
+ 
+  #combination of Chain and Richness
+  model14=nlme(FCL ~ a*Richness+b*Chain-1, data=df, start=c(a=1, b=1), 
+                      fixed = a + b ~ 1,
+                     random = a + b ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower = c(a=0.01, b=0.01), upper=c(a=10, b=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE))
+  model15=nlme(FCL ~ a*Richness+b*(1-exp(-c*Chain))-1, data=df, start=c(a=1, b=max(df$FCL)/2, c=b_start), 
+               fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01), 
+                        upper=c(a=10, b=max(df$FCL)+1, c=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE))
+  model16=nlme(FCL ~ a*Richness-b*Chain^2+c*Chain-1, data=df, start=c(a=1, b=1, c=1), 
+               fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                       lower=c(a=0.01, b=0.01, c=0.01), 
+                       upper=c(a=10, b=10, c=10),
+                       returnObject=TRUE,msWarnNoConv=FALSE))
+  model24=nlme(FCL ~ a*(1-exp(-b*Richness))+c*Chain-1, data=df, start=c(a=max(df$FCL)/2, b=b_start, c=1),
+               fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01), 
+                        upper=c(a=max(df$FCL)+1, b=10, c=10),
+                        returnObject=TRUE,msWarnNoConv=FALSE))
+  model25=nlme(FCL ~ a*(1-exp(-b*Richness))+c*(1-exp(-d*Chain))-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=max(df$FCL)/2, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01),
+              upper=c(a=max(df$FCL)+1, b=10, c=max(df$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model26=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df, 
+              start=c(a=max(df$FCL)/2, b=b_start, c=1, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+              upper=c(a=max(df$FCL)+1, b=10, c=10, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model34=nlme(FCL ~ -a*Richness^2+b*Richness+c*Chain-1, data=df, start=c(a=1, b=3, c=1),
+              fixed = a+b+c ~ 1,
+               random = a+b+c  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b=0.01, c=0.01),
+              upper=c(a=10, b=10, c=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model35=nlme(FCL ~ -a*Richness^2+b*Richness+c*(1-exp(-d*Chain))-1, data=df, 
+              start=c(a=1, b=1, c=max(df$FCL)/2, d=b_start), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+              lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+              upper=c(a=10, b=10, c=max(df$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  model36=nlme(FCL ~ -a*Richness^2+b*Richness-c*Chain^2+d*Chain-1, data=df, 
+              start=c(a=1, b=1, c=1, d=1),
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                        lower=c(a=0.01, b =0.01, c=0.01, d=0.01), 
+              upper=c(a=10, b=10, c=10, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+  
+  AICs=c(AIC(model1), AIC(model2), AIC(model3), AIC(model4), AIC(model5), AIC(model6),
+         AIC(model14),AIC(model15), AIC(model16), AIC(model24), AIC(model25), AIC(model26),
+         AIC(model34),AIC(model35), AIC(model36))
+   minAIC=min(AICs)
+  deltaAIC=AICs-minAIC
+  print(deltaAIC)
+  print(minAIC)
+}
+
+#FCL long
+df_long=read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv')
+#AIC_cal_nlme(df_long, 2) 
+#FCL mean
+df_mean=read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv')
+#AIC_cal_nlme(df_mean, 1)
+#FCL short
+df_short=read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv')
+AIC_cal_nlme(df_short, 2) # to avoid bad convergence
+```
+Below, you can see fitted functions used above
+```{r fitting}
+df_mean=read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv')
+df_fill=df_mean
+df_fill[is.na(df_fill)]=0
+df_fill$FW=rep(1:30, each=1620) 
+ model_mean=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
+               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+print(model_mean)
+
+df_long=read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv')
+df_fill=df_long
+df_fill[is.na(df_fill)]=0
+df_fill$FW=rep(1:30, each=1620) 
+ model_long=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
+               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
+                fixed = a+b+c+d ~ 1,
+                random = a+b+c+d  ~ 1 | FW,
+               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
+               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
+               returnObject=TRUE,msWarnNoConv=FALSE))
+print(model_long)
+
+df_short=read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv')
+df_fill=df_short
+df_fill[is.na(df_short)]=0
+df_fill$FW=rep(1:30, each=1620) 
+model_short=nlme(FCL ~ a*(1-exp(-b*Richness))+c*(1-exp(-d*Chain))-1, data=df_fill, 
+              start=c(a=max(df_fill$FCL)/2, b=2, c=max(df_fill$FCL)/2, d=1), 
+               fixed = a+b+c+d ~ 1,
+               random = a+b+c+d  ~ 1 | FW,
+              control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
+                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01),
+              upper=c(a=max(df_fill$FCL)+1, b=10, c=max(df_fill$FCL)+1, d=10),
+              returnObject=TRUE,msWarnNoConv=FALSE))
+print(model_short)
+```
+
 ```{r Analyze the results}
 library(ggplot2)
 library(patchwork)
 library(reshape2)
 library(nlme)
 
-Sensitivity_plot=function(df, fname_head){
+Sensitivity_plot=function(df,model,fname_head, model_form=0){
   # Plot the results of sensitivity analysis
   # df data frame of sensitiviy analsis results
+  # model: the best nlme model  
   # fname_head header of fig name
+  # model_form: if 0 => saturating + quadratic, otherwise, saturating + saturating
   
   #g1 correlation heat map
   # we omit rows with na (no motifs) because such canses have low species richnes and biases correlations
@@ -350,16 +530,8 @@ Sensitivity_plot=function(df, fname_head){
   df_fill=df
   df_fill[is.na(df_fill)]=0 # need to fill na in nlme
   
-  #1. fit the mixed model
+  #1. obtain coefficients from the model
  
-  model=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
-               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
-                fixed = a+b+c+d ~ 1,
-                random = a+b+c+d  ~ 1 | FW,
-               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
-                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
-               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
-               returnObject=TRUE,msWarnNoConv=FALSE))
    fixed_coefs=model$coefficients$fixed #
    random_coefs=model$coefficients$random$FW
    #2. Show fixed effect
@@ -379,16 +551,8 @@ g2= ggplot(df, aes(x = Richness, y = FCL)) +
     panel.grid = element_blank(),
     legend.text = element_text(size = 14),
     legend.title = element_text(size = 14)
-  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))-fixed_coefs[3]*mean(df$Chain, na.rm=TRUE)^2+fixed_coefs[4]*mean(df$Chain, na.rm=TRUE)-1, color='green', linewidth=2)
-# show random effects
-for (i in 1:nrow(random_coefs)) {
-  g2 = g2 +
-    geom_line(data = data.frame(Richness = df$Richness,
-              FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df$Richness)) +
-                          (random_coefs[i, 3] - fixed_coefs[3]) * mean(df$Chain, na.rm = TRUE)^2 +
-                          (random_coefs[i, 4] + fixed_coefs[4]) * mean(df$Chain, na.rm = TRUE) - 1),
-    linewidth = 0.5,linetype = 2, color='black')
-}
+  )
+  
 
 g3= ggplot(df, aes(x = Chain, y = FCL)) +
   ylab('FCL') +
@@ -405,17 +569,49 @@ g3= ggplot(df, aes(x = Chain, y = FCL)) +
     panel.grid = element_blank(),
     legend.text = element_text(size = 14),
     legend.title = element_text(size = 14)
-  )+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df$Richness, na.rm=TRUE)))-fixed_coefs[3]*x^2+fixed_coefs[4]*x-1, color='green', linewidth=2)
+  )
 
-for (i in 1:nrow(random_coefs)) {
-  g3 = g3 +
+
+  if(model_form==0){
+    g2=g2+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))-fixed_coefs[3]*mean(df$Chain, na.rm=TRUE)^2+fixed_coefs[4]*mean(df$Chain, na.rm=TRUE)-1, color='green', linewidth=2)
+    g3=g3+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df$Richness, na.rm=TRUE)))-fixed_coefs[3]*x^2+fixed_coefs[4]*x-1, color='green', linewidth=2)
+    # show random effects
+    for (i in 1:nrow(random_coefs)) {
+      g2 = g2 +
+        geom_line(data = data.frame(Richness = df$Richness,
+                  FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df$Richness)) +
+                              (random_coefs[i, 3] - fixed_coefs[3]) * mean(df$Chain, na.rm = TRUE)^2 +
+                              (random_coefs[i, 4] + fixed_coefs[4]) * mean(df$Chain, na.rm = TRUE) - 1),
+        linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
+      
+      g3 = g3 +
     geom_line(data = data.frame(Chain = df$Chain,
   FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df$Richness, na.rm=TRUE))) +
                           (random_coefs[i, 3] - fixed_coefs[3]) * df$Chain^2 +
                           (random_coefs[i, 4] + fixed_coefs[4]) * df$Chain - 1),
-    linewidth = 0.5,linetype = 2, color='black')
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3) 
+    }
   }
-  
+else{
+  g2=g2+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*x))+fixed_coefs[3]*(1-exp(-fixed_coefs[4]*mean(df$Chain, na.rm=TRUE)))-1, color='green', linewidth=2)
+    g3=g3+stat_function(fun = function(x) fixed_coefs[1]*(1-exp(-fixed_coefs[2]*mean(df$Richness, na.rm=TRUE)))+fixed_coefs[3]*(1-exp(-fixed_coefs[4]*x))-1, color='green', linewidth=2)
+    # show random effects
+    for (i in 1:nrow(random_coefs)) {
+      g2 = g2 +
+        geom_line(data = data.frame(Richness = df$Richness,
+                  FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * df$Richness)) +
+                              (random_coefs[i, 3] + fixed_coefs[3]) * (1-exp(
+                              (random_coefs[i, 4] - fixed_coefs[4]) * mean(df$Chain, na.rm = TRUE))) - 1),
+        linewidth = 0.5,linetype = 2, color='black', alpha=0.3)
+      
+      g3 = g3 +
+    geom_line(data = data.frame(Chain = df$Chain,
+  FCL = (random_coefs[i, 1] + fixed_coefs[1]) * (1 - exp((random_coefs[i, 2] - fixed_coefs[2]) * mean(df$Richness, na.rm=TRUE))) +
+                          (random_coefs[i, 3] + fixed_coefs[3]) * (1-exp(
+                          (random_coefs[i, 4] - fixed_coefs[4]) * df$Chain)) - 1),
+    linewidth = 0.5,linetype = 2, color='black', alpha=0.3) 
+    }
+}
   
   
   
@@ -475,52 +671,7 @@ for (i in 1:nrow(random_coefs)) {
 
 
 # run codes
-Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv'), 'FCLmean')
-Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv'), 'FCLlong')
-Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv'), 'FCLshort')
-```
-
-Below, you can see fitted functions used above
-```{r fitting}
-df_mean=read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv')
-df_fill=df_mean
-df_fill[is.na(df_fill)]=0
-df_fill$FW=rep(1:30, each=1620) 
- model_mean=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
-               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
-                fixed = a+b+c+d ~ 1,
-                random = a+b+c+d  ~ 1 | FW,
-               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
-                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
-               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
-               returnObject=TRUE,msWarnNoConv=FALSE))
-print(model_mean)
-
-df_long=read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv')
-df_fill=df_long
-df_fill[is.na(df_fill)]=0
-df_fill$FW=rep(1:30, each=1620) 
- model_mean=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
-               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
-                fixed = a+b+c+d ~ 1,
-                random = a+b+c+d  ~ 1 | FW,
-               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
-                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
-               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
-               returnObject=TRUE,msWarnNoConv=FALSE))
-print(model_long)
-
-df_short=read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv')
-df_fill=df_short
-df_fill[is.na(df_short)]=0
-df_fill$FW=rep(1:30, each=1620) 
- model_short=nlme(FCL ~ a*(1-exp(-b*Richness))-c*Chain^2+d*Chain-1, data=df_fill, 
-               start=c(a=max(df_fill$FCL)/2, b=1, c=1, d=1), 
-                fixed = a+b+c+d ~ 1,
-                random = a+b+c+d  ~ 1 | FW,
-               control=c(maxIter=50, tolerance=1e-3, msMaxIter=100,
-                         lower=c(a=0.01, b=0.01, c=0.01, d=0.01), 
-               upper=c(a=max(df_fill$FCL)+1, b=10, c=10, d=10),
-               returnObject=TRUE,msWarnNoConv=FALSE))
-print(model_short)
+Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLmean_summary.csv'), model_mean, 'FCLmean', model_form=0)
+Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLlong_summary.csv'), model_long, 'FCLlong', model_form=0)
+Sensitivity_plot(read.csv('./Species32/basal4/AlternativeData/FCLshort_summary.csv'), model_short, 'FCLshort', model_form=1)
 ```
