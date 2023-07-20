@@ -626,7 +626,14 @@ axis.text.x = element_text(size=14),
 panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+annotate(geom="text", x=40, y=9, label=paste0('corr.=', round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$p.value, 3)), size=5)
+  )
+if(round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$p.value)==0){
+  r1=r1+annotate(geom="text", x=40, y=9, label=paste0('corr.=', round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+} else{
+  r1=r1+annotate(geom="text", x=40, y=9, label=paste0('corr.=', round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(na.omit(df_emp)$FCL_long, na.omit(df_emp)$Richness, method='spearman')$p.value, 3)), size=5)
+}
+
+
 
 # Note df_emp$FCL_long includes some NA because of cyclic food webs
 r2=ggplot(df_emp, aes(x=Richness, y=FCL_mean))+geom_point(color = "black", alpha=0.3, size=5)+
@@ -639,7 +646,14 @@ axis.text.x = element_text(size=14),
 panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+annotate(geom="text", x=40, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$p.value, 3)), size=5)
+  )
+if(round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$p.value,3)==0){
+  r2=r2+annotate(geom="text", x=40, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+  r2=r2+annotate(geom="text", x=40, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Richness, method='spearman')$p.value, 3)), size=5)
+}
+
+
 
 r3=ggplot(df_emp, aes(x=Richness, y=FCL_short))+ylab('FCL short')+geom_point(color = "black", alpha=0.3, size=5)+
   theme_bw()+theme(
@@ -651,7 +665,15 @@ axis.text.x = element_text(size=14),
 panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+annotate(geom="text", x=40, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$p.value, 3)), size=5)
+  )
+
+
+if(round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$p.value, 3)==0){
+   r3=r3+annotate(geom="text", x=40, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+   r3=r3+annotate(geom="text", x=40, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Richness, method='spearman')$p.value, 3)), size=5)
+}
+ 
 
 m1=ggplot(df_emp, aes(x=Chain, y=FCL_long))+geom_point(color = "#a6cee3", alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -661,7 +683,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+  )
+if(round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$p.value)==0){
+  m1=m1+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$estimate, 3), ', p.val<0.001' ), size=5)
+}else{
+m1=m1+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+}
 
 m2=ggplot(df_emp, aes(x=Omnivory, y=FCL_long))+ylab('FCL long')+geom_point(color = '#1f78b4', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -671,7 +698,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )  +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+  )  
+if(round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$p.value, 3)==0){
+  m2=m2+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+  m2=m2+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+}
 
 m3=ggplot(df_emp, aes(x=Apparent, y=FCL_long))+ylab('FCL long')+geom_point(color = '#b2df8a', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -681,8 +713,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
-
+  )
+if(round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$p.value, 3)==0){
+ m3= m3+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+m3=m3+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+}
 m4=ggplot(df_emp, aes(x=Exploitative, y=FCL_long))+ylab('FCL long')+geom_point(color = '#33a02c', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -691,8 +727,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
-
+  )
+if(round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$p.value, 3)==0){
+  m4=m4+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+m4=m4+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=9, label=paste0('corr.=', round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_long, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+}
 
 m5=ggplot(df_emp, aes(x=Chain, y=FCL_mean))+geom_point(color = "#a6cee3", alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -702,8 +742,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
-
+  )
+if(round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$p.value, 3)==0){
+  m5=m5+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+m5=m5+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+}
 m6=ggplot(df_emp, aes(x=Omnivory, y=FCL_mean))+ylab('FCL mean')+geom_point(color = '#1f78b4', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -712,7 +756,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )   +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+  )   
+if(round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$p.value, 3)==0){
+  m6=m6+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+m6=m6+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+}
 
 m7=ggplot(df_emp, aes(x=Apparent, y=FCL_mean))+ylab("FCL mean")+geom_point(color = '#b2df8a', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -722,8 +771,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
-
+  )
+if(round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$p.value, 3)==0){
+   m7=m7+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+  m7=m7+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+}
 m8=ggplot(df_emp, aes(x=Exploitative, y=FCL_mean))+ylab('FCL mean')+geom_point(color = '#33a02c', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -732,7 +785,13 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+  )
+
+if(round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$p.value, 3)==0){
+  m8=m8+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+m8=m8+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=4.5, label=paste0('corr.=', round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_mean, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+}
 
 m9=ggplot(df_emp, aes(x=Chain, y=FCL_short))+ylab("FCL short")+geom_point(color = "#a6cee3", alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -742,8 +801,13 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+  )
 
+if(round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$p.value, 3)==0){
+  m9=m9+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+  m9=m9+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Chain, method='spearman')$p.value, 3)), size=5)
+}
 m10=ggplot(df_emp, aes(x=Omnivory, y=FCL_short))+ylab('FCL short')+geom_point(color = '#1f78b4', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
   axis.title.x = element_text(size=20),
@@ -752,7 +816,12 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )   +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+  )  
+if(round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$p.value, 3)==0){
+  m10=m10 +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+  m10=m10 +xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Omnivory, method='spearman')$p.value, 3)), size=5)
+}
 
 m11=ggplot(df_emp, aes(x=Apparent, y=FCL_short))+ylab('FCL short')+geom_point(color = '#b2df8a', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -762,7 +831,13 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+  )
+
+if(round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$p.value, 3)==0){
+   m11=m11+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{
+  m11=m11+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Apparent, method='spearman')$p.value, 3)), size=5)
+}
 
 m12=ggplot(df_emp, aes(x=Exploitative, y=FCL_short))+ylab('FCL short')+geom_point(color = '#33a02c', alpha=0.3, size=5)+theme_bw()+theme(
 axis.text.x = element_text(size=14),
@@ -772,11 +847,17 @@ axis.text.x = element_text(size=14),
   legend.position="none", panel.grid = element_blank(),
  legend.text=element_text(size=14),
     legend.title = element_text(size=14)
-  )+xlim(c(0,1.0))+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+  )+xlim(c(0,1.0))
 
+
+if(round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$p.value, 3)==0){
+  m12=m12+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val<0.001'), size=5)
+}else{m12=m12+annotate(geom="text", x=0.4, y=3.75, label=paste0('corr.=', round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$estimate, 3), ', p.val=',  round(cor.test(df_emp$FCL_short, df_emp$Exploitative, method='spearman')$p.value, 3)), size=5)
+}
 g=r1+r2+r3+m1+m5+m9+m2+m6+m10+m3+m7+m11+m4+m8+m12+plot_layout(nrow = 5, ncol=3)+plot_annotation(tag_levels = "A")&theme(plot.tag = element_text(size = 32))
 
-ggsave('./empirical_pdf/FCL_empirical.pdf', width=12, height=12)
+#ggsave('./empirical_pdf/FCL_empirical.pdf', width=12, height=12)
+ggsave('./FCL_empirical.pdf', width=12, height=12)
 ```
 
 ```{r Simulated richness and motives}
